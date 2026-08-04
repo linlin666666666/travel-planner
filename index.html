@@ -1058,34 +1058,61 @@ function getMockTransportInfo(from, to, date, transportType) {
   const airDist = (coordFrom&&coordTo) ? Math.round(haversineKm(coordFrom.lat,coordFrom.lon,coordTo.lat,coordTo.lon)) : 0;
 
   if (t.includes('飞机')) {
-    // Flight: ~800km/h cruise, +1h for boarding/taxi, price ~0.5-0.8 yuan/km
+    // 真实中国航班逻辑
     const dist = airDist||800;
-    const flightMin = Math.round(dist/800*60)+60;
-    const h=Math.floor(flightMin/60),m=flightMin%60;
-    const basePrice = Math.round(dist*0.65);
-    const prices = [basePrice,Math.round(basePrice*0.82),Math.round(basePrice*1.18)];
-    // Sort by price
-    const sorted = prices.map((p,i)=>i).sort((a,b)=>prices[a]-prices[b]);
-    const airlines = ['南方航空','东方航空','中国国航'];
-    return {type:'flight',items:sorted.map((si,i)=>({
-      dep:`${6+i*4}:${String((i*25)%60).padStart(2,'0')}`,
-      arr:`${6+i*4+Math.floor((flightMin+i*10)/60)}:${String((m+i*10)%60).padStart(2,'0')}`,
-      duration:`${h}h${m}m`,price:prices[si],airline:airlines[si]
+    // 实际航程 = 直线距离 × 1.05（绕飞系数）
+    const flightDist = Math.round(dist*1.05);
+    // 飞行时间（巡航800km/h，起降额外各10分钟）
+    const airMin = Math.round(flightDist/800*60)+20;
+    // 总耗时 = 值机安检45min + 飞行 + 滑行取行李20min
+    const totalMin = airMin + 65;
+    const h=Math.floor(totalMin/60),m=totalMin%60;
+    // 票价：递减单价（短途贵，长途便宜）
+    let pricePerKm;
+    if (dist<500) pricePerKm=0.85;
+    else if (dist<1000) pricePerKm=0.62;
+    else if (dist<2000) pricePerKm=0.48;
+    else pricePerKm=0.38;
+    const economy = Math.round(dist*pricePerKm/10)*10; // 取整到10元
+    // 3个航班：早班便宜、午班标准、晚班贵
+    const flights = [
+      {dep:'07:30',price:Math.round(economy*0.75),airline:'南方航空',flightNo:'CZ3'+Math.floor(dist*0.8)%900+100},
+      {dep:'12:00',price:economy,airline:'东方航空',flightNo:'MU5'+Math.floor(dist*1.1)%900+100},
+      {dep:'17:30',price:Math.round(economy*1.2),airline:'中国国航',flightNo:'CA1'+Math.floor(dist*0.9)%900+100},
+    ];
+    // 按价格排序（最便宜优先）
+    flights.sort((a,b)=>a.price-b.price);
+    function addMin(t,min){const hh=parseInt(t),mm=parseInt(t.slice(3));const total=hh*60+mm+min;return `${String(Math.floor(total/60)%24).padStart(2,'0')}:${String(total%60).padStart(2,'0')}`;}
+    function timeDiff(a,b){const ah=parseInt(a),am=parseInt(a.slice(3)),bh=parseInt(b),bm=parseInt(b.slice(3));const min=(bh*60+bm)-(ah*60+am);return `${Math.floor(min/60)}h${min%60}m`;}
+    return {type:'flight',items:flights.map((f,i)=>({
+      dep:f.dep,arr:addMin(f.dep,totalMin),duration:timeDiff(f.dep,addMin(f.dep,totalMin)),
+      price:f.price,airline:f.airline,flightNo:f.flightNo
     }))};
   }
   if (t.includes('高铁')) {
-    // High-speed rail: ~280km/h avg, price ~0.42-0.52 yuan/km
+    // 真实中国高铁逻辑
     const dist = airDist||600;
-    const railMin = Math.round(dist/280*60)+20;
+    // 实际铁路里程 = 直线 × 1.15（绕行系数）
+    const railDist = Math.round(dist*1.15);
+    // G字头：均速280km/h，含中途停站（每300km停一站+5min）
+    const stops = Math.floor(railDist/300);
+    const railMin = Math.round(railDist/280*60)+stops*5;
     const h=Math.floor(railMin/60),m=railMin%60;
-    const basePrice = Math.round(dist*0.48);
-    const prices = [basePrice,Math.round(basePrice*0.85),Math.round(basePrice*0.75)];
-    const departures = [{dep:'07:00',dur:railMin},{dep:'13:00',dur:railMin+10},{dep:'19:00',dur:railMin-5}];
-    return {type:'train',items:departures.map((d,i)=>{
-      const ah=Math.floor((parseInt(d.dep)+Math.floor(d.dur/60))%24);
-      const am=d.dur%60;
-      return {dep:d.dep,arr:`${String(ah).padStart(2,'0')}:${String(am).padStart(2,'0')}`,duration:`${h}h${m}m`,price:prices[i],code:'G'+Math.floor(1000+dist*3+i*7)};
-    })};
+    // 票价：G车二等座 ~0.46元/km，短途上浮
+    const rate = dist<300?0.52:(dist<800?0.48:0.44);
+    const secondClass = Math.round(railDist*rate/5)*5;
+    const trains = [
+      {dep:'06:50',price:Math.round(secondClass*0.85),code:'G'+Math.floor(1000+dist*3.2)%900+100},
+      {dep:'11:20',price:secondClass,code:'G'+Math.floor(1000+dist*2.8)%900+100},
+      {dep:'16:10',price:Math.round(secondClass*1.1),code:'G'+Math.floor(1000+dist*3.5)%900+100},
+    ];
+    function addMin(t,min){const hh=parseInt(t),mm=parseInt(t.slice(3));const total=hh*60+mm+min;return `${String(Math.floor(total/60)%24).padStart(2,'0')}:${String(total%60).padStart(2,'0')}`;}
+    function timeDiff(a,b){const ah=parseInt(a),am=parseInt(a.slice(3)),bh=parseInt(b),bm=parseInt(b.slice(3));const min=(bh*60+bm)-(ah*60+am);return `${Math.floor(min/60)}h${min%60}m`;}
+    trains.sort((a,b)=>a.price-b.price);
+    return {type:'train',items:trains.map(t=>({
+      dep:t.dep,arr:addMin(t.dep,railMin),duration:timeDiff(t.dep,addMin(t.dep,railMin)),
+      price:t.price,code:t.code
+    }))};
   }
   if (t.includes('自驾')) {
     /* === 自驾路线计算 - 开始 === */
@@ -1346,7 +1373,7 @@ function buildCard(step, card) {
       infoHtml = `<div style="font-size:.8rem;color:var(--sub);text-align:center;margin-bottom:8px">${from} → ${to} · ${setupData.dateFrom||'日期'}</div>`;
       info.items.forEach(item => {
         infoHtml += `<div class="card" style="padding:10px 14px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center">
-          <div><strong style="font-size:1rem">${item.dep}</strong> → <strong style="font-size:1rem">${item.arr}</strong><br><small style="color:var(--sub)">${item.duration} · ${isFlight?item.airline:item.code}</small></div>
+          <div><strong style="font-size:1rem">${item.dep}</strong> → <strong style="font-size:1rem">${item.arr}</strong><br><small style="color:var(--sub)">${item.duration} · ${isFlight?(item.flightNo+' '):''}${isFlight?item.airline:item.code}</small></div>
           <div style="text-align:right;color:var(--c4);font-weight:700">¥${item.price}<br><small style="color:var(--sub);font-weight:400">起</small></div>
         </div>`;
       });
