@@ -299,6 +299,7 @@ h3{font-size:1rem;font-weight:600;color:var(--text)}
     <button class="nav-item" data-tab="checklist"><span class="icon">✅</span>清单</button>
     <button class="nav-item" data-tab="budget"><span class="icon">💰</span>预算</button>
     <button class="nav-item" data-tab="bookmarks"><span class="icon">⭐</span>收藏</button>
+    <button class="nav-item" data-tab="aiplanner"><span class="icon">🤖</span>AI规划</button>
   </nav>
 </div>
 
@@ -1816,6 +1817,7 @@ function renderTab(tab) {
     case 'checklist': renderChecklist(body); break;
     case 'budget': renderBudget(body); break;
     case 'bookmarks': renderBookmarks(body); break;
+    case 'aiplanner': renderAiPlanner(body); break;
   }
 }
 
@@ -2065,6 +2067,187 @@ function renderBookmarks(body) {
   }}, '添加景点');
   af.appendChild(nm); af.appendChild(ad); af.appendChild(afRow); af.appendChild(addBtn);
   body.appendChild(af);
+}
+
+// ============================================================
+// AI PLANNER
+// ============================================================
+function parseVideoLink(url) {
+  if (!url) return null;
+  if (/bilibili\.com|b23\.tv/i.test(url)) {
+    const m = url.match(/BV[\w]{10}/) || url.match(/video\/(BV[\w]{10})/);
+    return {platform:'B站', id:m?m[1]||m[0]:null, tip:'请手动输入视频中的关键景点/餐厅名称'};
+  }
+  if (/douyin\.com/i.test(url)) {
+    const m = url.match(/video\/(\d+)/) || url.match(/note\/(\d+)/);
+    return {platform:'抖音', id:m?m[1]:null, tip:'短视频平台限制，请手动输入关键信息'};
+  }
+  if (/xiaohongshu\.com/i.test(url)) {
+    return {platform:'小红书', id:null, tip:'请手动输入笔记中的关键地点和体验'};
+  }
+  if (/youtube\.com|youtu\.be/i.test(url)) {
+    const m = url.match(/v=([\w-]+)/) || url.match(/youtu\.be\/([\w-]+)/);
+    return {platform:'YouTube', id:m?m[1]:null, tip:'请手动输入视频中的关键推荐'};
+  }
+  return {platform:'未知', id:null, tip:'请手动输入攻略中的关键信息'};
+}
+
+function buildAiPrompt(trip, videoInfo) {
+  const days = trip.dateFrom && trip.dateTo
+    ? Math.ceil((new Date(trip.dateTo)-new Date(trip.dateFrom))/86400000)+1 : '?';
+  const info = [
+    `目的地：${trip.dest||'未知'}`,
+    `日期：${trip.dateFrom||''} 至 ${trip.dateTo||''}（${days}天）`,
+    `交通：${trip.transport||'未选'}（出发地${trip.departure||'未填'}）`,
+    `人数：${trip.people||'?'}人${trip.persons?`（${trip.persons.map(p=>p.gender).join('/')}）`:''}`,
+    `住宿：${trip.accomZone||''} · ${trip.accomType||''}`,
+    `预算：人均${trip.budget||'?'}元`,
+    `偏好：${(trip.tags||[]).join('、')||'无'}`,
+    `饮食：${trip.diet||'无忌口'}`,
+  ];
+  if (videoInfo) {
+    info.push(`\n【视频攻略参考】\n平台：${videoInfo.platform}\n关键信息：${videoInfo.keyPoints||'未提供'}`);
+    if (videoInfo.url) info.push(`链接：${videoInfo.url}`);
+  }
+  return `你是一位拥有20年经验的资深旅游规划师。请根据以下信息生成一份${days}天的详细旅行攻略。\n\n【基础信息】\n${info.join('\n')}\n\n【要求】\n- 按天规划，每天分上午/下午/晚上\n- 考虑景点距离，避免折返\n- 推荐合适档位餐厅（标注人均）\n- 尊重饮食禁忌\n- 预留交通休息时间\n- 输出JSON格式（含title/summary/days数组）`;
+}
+
+function buildLocalItinerary(trip) {
+  const days = trip.dateFrom&&trip.dateTo?Math.ceil((new Date(trip.dateTo)-new Date(trip.dateFrom))/86400000)+1:3;
+  const city = trip.dest||'';
+  const key = Object.keys(BUILTIN_ATTRACTIONS).find(k=>city.includes(k));
+  const attractions = key?BUILTIN_ATTRACTIONS[key]:[];
+  const prefs = trip.tags||[];
+  // Filter by preferences
+  let filtered = attractions.slice();
+  if (prefs.some(t=>t.includes('美食'))) { /* keep all, food is separate */ }
+  const themes = ['城市探索','文化沉浸','自然放松','美食之旅','深度体验','休闲漫游','经典打卡'];
+  const result = {title:`${city}${days}天${days-1}晚·个性化之旅`,summary:`基于您的偏好${prefs.slice(0,3).join('、')||'综合'}定制的行程`,days:[],packingSuggestions:['舒适的步行鞋','充电宝','防晒霜','雨伞'],notes:['本行程由本地模板生成，连接AI可获更精准推荐']};
+  for (let d=0;d<days;d++) {
+    const date = new Date(trip.dateFrom);
+    date.setDate(date.getDate()+d);
+    const attr = filtered[d%filtered.length]||null;
+    const theme = themes[d%themes.length];
+    const day = {day:d+1,date:date.toISOString().slice(0,10),theme,meals:[],transport:'建议公交+步行',budgetEstimate:`人均${Math.round((parseInt(trip.budget)||500)/(days||3))}元`};
+    day.morning = {activity:attr?`游览${attr.name}`:'自由探索城市',location:attr?city:'市区',duration:'3小时',tips:attr?attr.tip||'提前查看开放时间':'建议早起感受当地晨间氛围'};
+    day.afternoon = {activity:attr&&attr.type==='景点'?'漫步周边街区':attr?'深入了解当地文化':`发现${city}隐藏景点`,location:city,duration:'3小时',tips:'午餐后适当休息'};
+    day.evening = {activity:`品尝${city}特色美食`,location:'当地热门商圈',duration:'2小时',tips:'提前查看餐厅营业时间'};
+    const cuisines = ['当地特色菜','地道小吃','网红餐厅','传统老店'];
+    day.meals = [{type:'午餐',name:`${city}${cuisines[d%4]}`,cuisine:'地方菜',budget:`人均${40+d*20}元`},{type:'晚餐',name:`${city}人气餐厅`,cuisine:'综合',budget:`人均${60+d*30}元`}];
+    result.days.push(day);
+  }
+  return result;
+}
+
+function renderAiPlanner(body) {
+  const t = state.trip;
+  if (!t||!t.dest) { body.innerHTML='<div class="card" style="text-align:center;padding:40px"><p style="color:var(--sub)">请先在设置向导中填写旅行信息</p></div>'; return; }
+  const days = t.dateFrom&&t.dateTo?Math.ceil((new Date(t.dateTo)-new Date(t.dateFrom))/86400000)+1:'?';
+  body.innerHTML = `
+    <h2 style="margin-bottom:12px">🤖 AI 旅游大师</h2>
+    <div class="card">
+      <h3 style="margin-bottom:8px">📋 旅行基础信息</h3>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:.82rem">
+        <div>🌍 ${t.dest||'-'}</div><div>📅 ${t.dateFrom||'-'} → ${t.dateTo||'-'}</div>
+        <div>🚗 ${t.transport||'-'}</div><div>👥 ${t.people||'-'}人 · ${t.accomType||'-'}</div>
+        <div>💰 人均¥${t.budget||'-'}</div><div>🏙️ ${t.accomZone||'-'}</div>
+        <div style="grid-column:1/-1">🎯 ${(t.tags||[]).join('、')||'无偏好'} ${t.diet?`· 🍽️ ${t.diet}`:''}</div>
+      </div>
+    </div>
+    <div class="card">
+      <h3 style="margin-bottom:8px">📹 视频攻略参考（可选）</h3>
+      <input type="text" id="video-url" placeholder="粘贴抖音/B站/小红书/YouTube 视频链接" style="margin-bottom:8px">
+      <div id="video-info" style="font-size:.78rem;color:var(--sub);margin-bottom:8px"></div>
+      <textarea id="video-keypoints" placeholder="请简要描述视频中提到的3-5个关键地点或体验&#10;如：视频中去了西湖断桥、吃了楼外楼、推荐了夜游运河" rows="3" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--glass-bg);font-size:.85rem;resize:vertical"></textarea>
+      <button class="btn btn-outline btn-sm" style="margin-top:8px" onclick="analyzeVideoLink()">🔍 解析视频链接</button>
+    </div>
+    <button class="btn btn-primary btn-block" id="generate-btn" onclick="generateAiPlan()">✨ 生成专属攻略</button>
+    <div id="ai-result" style="margin-top:16px"></div>
+  `;
+}
+
+function analyzeVideoLink() {
+  const url = document.getElementById('video-url')?.value?.trim();
+  if (!url) return;
+  const info = parseVideoLink(url);
+  const div = document.getElementById('video-info');
+  if (div) div.innerHTML = `<span style="color:var(--c1)">📹 识别为${info.platform}视频</span> · ${info.tip}`;
+  toast(`${info.platform}链接已识别`);
+}
+
+function generateAiPlan() {
+  const t = state.trip;
+  if (!t) return;
+  const url = document.getElementById('video-url')?.value?.trim();
+  const keyPoints = document.getElementById('video-keypoints')?.value?.trim();
+  const videoInfo = url ? {...parseVideoLink(url),url,keyPoints} : null;
+  const prompt = buildAiPrompt(t, videoInfo);
+  const resultDiv = document.getElementById('ai-result');
+  if (!resultDiv) return;
+
+  // Show loading
+  resultDiv.innerHTML = '<div class="loading"><div class="spinner"></div><span>旅游大师正在规划您的专属行程…</span></div>';
+
+  // Try AI API (预留接口，无 key 时降级)
+  // TODO: 接入 Kimi/Claude/GPT API
+  // const apiResult = await callAiApi(prompt);
+  // if (apiResult) { renderAiResult(apiResult); return; }
+
+  // Fallback: local template generation
+  setTimeout(()=>{
+    try {
+      const localPlan = buildLocalItinerary(t);
+      renderAiResult(resultDiv, localPlan, '基础版');
+    } catch(e) {
+      resultDiv.innerHTML = `<div class="card" style="text-align:center"><p style="color:var(--c4)">生成失败：${e.message}</p></div>`;
+    }
+  }, 1200);
+}
+
+function renderAiResult(container, plan, version) {
+  container.innerHTML = `
+    <div class="card" style="background:linear-gradient(135deg,rgba(99,102,241,.08),rgba(244,114,182,.06))">
+      ${version==='基础版'?'<div class="hint" style="text-align:center;margin-bottom:8px">📦 本地模板生成 · 连接AI可获得更精准推荐</div>':''}
+      <h3 style="font-size:1.1rem;margin-bottom:4px">${plan.title}</h3>
+      <p style="font-size:.82rem;color:var(--sub);margin-bottom:12px">${plan.summary}</p>
+      <div id="plan-days"></div>
+      ${plan.notes?`<div class="hint" style="margin-top:12px">${plan.notes.join(' · ')}</div>`:''}
+      ${plan.packingSuggestions?`<div class="card" style="margin-top:12px;padding:10px"><strong>🎒 建议携带：</strong>${plan.packingSuggestions.join('、')}</div>`:''}
+    </div>
+  `;
+  const daysDiv = document.getElementById('plan-days');
+  if (!daysDiv) return;
+  (plan.days||[]).forEach(day => {
+    const dayCard = document.createElement('div');
+    dayCard.className = 'card';
+    dayCard.style.cssText = 'margin-bottom:10px';
+    dayCard.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <strong style="font-size:1rem">📅 第${day.day}天</strong>
+        <span style="font-size:.78rem;color:var(--sub)">${day.date||''}</span>
+        <span style="font-size:.75rem;background:rgba(99,102,241,.1);color:var(--c1);padding:2px 8px;border-radius:10px">${day.theme||''}</span>
+      </div>
+      <div style="border-left:2px solid var(--c1);padding-left:12px;margin-left:6px">
+        ${['morning','afternoon','evening'].map(t=>day[t]?`
+          <div style="margin-bottom:8px">
+            <div style="font-size:.72rem;color:var(--c1);font-weight:600">${t==='morning'?'☀️ 上午':t==='afternoon'?'🌤️ 下午':'🌙 晚上'}</div>
+            <div style="font-size:.88rem;font-weight:600">${day[t].activity}</div>
+            <div style="font-size:.75rem;color:var(--sub)">📍 ${day[t].location||''} · ⏱️ ${day[t].duration||''}</div>
+            ${day[t].tips?`<div style="font-size:.72rem;color:var(--c3)">💡 ${day[t].tips}</div>`:''}
+          </div>
+        `:'').join('')}
+      </div>
+      ${day.meals&&day.meals.length?`
+        <div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border)">
+          ${day.meals.map(m=>`<span style="font-size:.75rem;margin-right:10px">🍽️ <strong>${m.name}</strong> ${m.cuisine} · ${m.budget}</span>`).join('')}
+        </div>
+      `:''}
+      <div style="display:flex;justify-content:space-between;margin-top:8px;font-size:.75rem;color:var(--sub)">
+        <span>🚗 ${day.transport||''}</span><span>💰 ${day.budgetEstimate||''}</span>
+      </div>
+    `;
+    daysDiv.appendChild(dayCard);
+  });
 }
 
 // ============================================================
