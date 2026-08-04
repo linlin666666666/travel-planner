@@ -1024,34 +1024,72 @@ const HOT_DESTINATIONS = ['北京','上海','成都','杭州','三亚','厦门',
 // Common departure cities
 const HOT_DEPARTURES = ['北京','上海','广州','深圳','成都','杭州','武汉','南京','重庆','长沙','郑州','西安'];
 
-// Mock transport info generator
+// Haversine distance between two coordinates (returns km)
+function haversineKm(lat1,lon1,lat2,lon2){
+  const R=6371;const dLat=(lat2-lat1)*Math.PI/180;const dLon=(lon2-lon1)*Math.PI/180;
+  const a=Math.sin(dLat/2)**2+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
+  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+}
+
+// Get city coordinate from cityDB or approximate
+function getCityCoord(city){
+  if (!city) return null;
+  const key=Object.keys(cityDB).find(k=>city.includes(k)||k.includes(city));
+  return key?cityDB[key]:null;
+}
+
+// Transport info generator using real city distances
 function getMockTransportInfo(from, to, date, transportType) {
   const t = transportType||'';
+  const coordFrom = getCityCoord(from);
+  const coordTo = getCityCoord(to);
+  const airDist = (coordFrom&&coordTo) ? Math.round(haversineKm(coordFrom.lat,coordFrom.lon,coordTo.lat,coordTo.lon)) : 0;
+
   if (t.includes('飞机')) {
-    const hours = 2 + Math.floor(Math.random()*4);
-    const mins = Math.floor(Math.random()*60);
-    const price = 400 + Math.floor(Math.random()*2000);
-    return {type:'flight',items:[
-      {dep:'07:30',arr:`${7+hours}:${String(mins).padStart(2,'0')}`,duration:`${hours}h${mins}m`,price:price,airline:'模拟航空'},
-      {dep:'10:15',arr:`${10+hours}:${String((mins+15)%60).padStart(2,'0')}`,duration:`${hours}h${mins+15}m`,price:Math.round(price*0.85),airline:'示例航空'},
-      {dep:'15:00',arr:`${15+hours}:${String((mins+30)%60).padStart(2,'0')}`,duration:`${hours}h${mins+30}m`,price:Math.round(price*1.2),airline:'测试航空'},
-    ]};
+    // Flight: ~800km/h cruise, +1h for boarding/taxi, price ~0.5-0.8 yuan/km
+    const dist = airDist||800;
+    const flightMin = Math.round(dist/800*60)+60;
+    const h=Math.floor(flightMin/60),m=flightMin%60;
+    const basePrice = Math.round(dist*0.65);
+    const prices = [basePrice,Math.round(basePrice*0.82),Math.round(basePrice*1.18)];
+    // Sort by price
+    const sorted = prices.map((p,i)=>i).sort((a,b)=>prices[a]-prices[b]);
+    const airlines = ['南方航空','东方航空','中国国航'];
+    return {type:'flight',items:sorted.map((si,i)=>({
+      dep:`${6+i*4}:${String((i*25)%60).padStart(2,'0')}`,
+      arr:`${6+i*4+Math.floor((flightMin+i*10)/60)}:${String((m+i*10)%60).padStart(2,'0')}`,
+      duration:`${h}h${m}m`,price:prices[si],airline:airlines[si]
+    }))};
   }
   if (t.includes('高铁')) {
-    const hours = 3 + Math.floor(Math.random()*6);
-    const mins = Math.floor(Math.random()*60);
-    const price = 200 + Math.floor(Math.random()*800);
-    return {type:'train',items:[
-      {dep:'06:45',arr:`${6+hours}:${String(mins).padStart(2,'0')}`,duration:`${hours}h${mins}m`,price:price,code:'G'+Math.floor(Math.random()*9000+1000)},
-      {dep:'12:30',arr:`${12+hours}:${String((mins+20)%60).padStart(2,'0')}`,duration:`${hours}h${mins+20}m`,price:Math.round(price*0.9),code:'G'+Math.floor(Math.random()*9000+1000)},
-      {dep:'18:00',arr:`${18+hours}:${String((mins+10)%60).padStart(2,'0')}`,duration:`${hours}h${mins+10}m`,price:Math.round(price*0.8),code:'G'+Math.floor(Math.random()*9000+1000)},
-    ]};
+    // High-speed rail: ~280km/h avg, price ~0.42-0.52 yuan/km
+    const dist = airDist||600;
+    const railMin = Math.round(dist/280*60)+20;
+    const h=Math.floor(railMin/60),m=railMin%60;
+    const basePrice = Math.round(dist*0.48);
+    const prices = [basePrice,Math.round(basePrice*0.85),Math.round(basePrice*0.75)];
+    const departures = [{dep:'07:00',dur:railMin},{dep:'13:00',dur:railMin+10},{dep:'19:00',dur:railMin-5}];
+    return {type:'train',items:departures.map((d,i)=>{
+      const ah=Math.floor((parseInt(d.dep)+Math.floor(d.dur/60))%24);
+      const am=d.dur%60;
+      return {dep:d.dep,arr:`${String(ah).padStart(2,'0')}:${String(am).padStart(2,'0')}`,duration:`${h}h${m}m`,price:prices[i],code:'G'+Math.floor(1000+dist*3+i*7)};
+    })};
   }
   if (t.includes('自驾')) {
-    const dist = 100 + Math.floor(Math.random()*1500);
-    const h = Math.floor(dist/90);
-    const toll = Math.round(dist*0.45);
-    return {type:'drive',distance:dist,duration:`${h}h${Math.floor(Math.random()*60)}m`,toll:toll,route:`${from} → G${Math.floor(Math.random()*99)+1}高速 → ${to}`};
+    // Driving: road distance ~1.35x air distance, speed ~95km/h highway, toll ~0.50 yuan/km
+    const airD = airDist||400;
+    const roadDist = Math.round(airD*1.35);
+    const driveMin = Math.round(roadDist/95*60)+Math.round(roadDist/400)*30; // +30min rest per 400km
+    const h=Math.floor(driveMin/60),m=driveMin%60;
+    const toll = Math.round(roadDist*0.50);
+    // Estimate fuel cost: 8L/100km * 7.8 yuan/L
+    const fuelCost = Math.round(roadDist*0.08*7.8);
+    // Generate a reasonable highway route name
+    const routeNum = Math.floor(airD*1.7)%999+1;
+    const routes = ['京港澳','沪昆','连霍','沈海','大广','长深','杭瑞','沪渝','福银','青银','兰海','厦蓉','包茂','泉南','二广'];
+    const routeName = routes[Math.floor(airD/100)%routes.length]||'';
+    return {type:'drive',distance:roadDist,duration:`${h}h${m}m`,toll:toll,fuel:fuelCost,
+      route:`${from} → ${routeName}高速(G${routeNum}) → ${to}`};
   }
   return {type:'other'};
 }
@@ -1261,15 +1299,18 @@ function buildCard(step, card) {
       });
       infoHtml += '<div class="hint" style="text-align:center;margin-top:4px">📦 模拟数据，仅供参考 · <a href="https://www.ctrip.com/" target="_blank" style="color:var(--c1)">前往携程查询实时票价 →</a></div>';
     } else if (info.type==='drive') {
+      const totalCost = (info.toll||0)+(info.fuel||0);
       infoHtml = `<div class="card" style="padding:14px">
         <div style="text-align:center;font-size:1.2rem;font-weight:700;margin-bottom:8px">🚗 ${from} → ${to}</div>
-        <div style="display:flex;justify-content:space-around;text-align:center">
+        <div style="display:flex;justify-content:space-around;text-align:center;flex-wrap:wrap;gap:8px">
           <div><div style="font-size:1.3rem;font-weight:700;color:var(--c1)">${info.distance}km</div><small style="color:var(--sub)">总里程</small></div>
           <div><div style="font-size:1.3rem;font-weight:700;color:var(--c1)">${info.duration}</div><small style="color:var(--sub)">预计时间</small></div>
-          <div><div style="font-size:1.3rem;font-weight:700;color:var(--c4)">¥${info.toll}</div><small style="color:var(--sub)">过路费预估</small></div>
+          <div><div style="font-size:1.3rem;font-weight:700;color:var(--c4)">¥${info.toll}</div><small style="color:var(--sub)">过路费</small></div>
+          <div><div style="font-size:1.3rem;font-weight:700;color:var(--c5)">¥${info.fuel||0}</div><small style="color:var(--sub)">预估油费</small></div>
         </div>
-        <div style="margin-top:8px;font-size:.8rem;color:var(--sub);text-align:center">路线：${info.route}</div>
-        <div class="hint" style="text-align:center;margin-top:8px">📦 模拟数据 · <a href="https://ditu.amap.com/" target="_blank" style="color:var(--c1)">高德地图规划路线 →</a></div>
+        <div style="margin-top:8px;text-align:center;font-size:.85rem;color:var(--sub)">💰 预估总费用：<strong style="color:var(--text)">¥${totalCost}</strong>（过路费+油费）</div>
+        <div style="margin-top:4px;font-size:.8rem;color:var(--sub);text-align:center">路线：${info.route}</div>
+        <div class="hint" style="text-align:center;margin-top:8px">📦 基于地理坐标估算 · <a href="https://ditu.amap.com/" target="_blank" style="color:var(--c1)">高德地图规划精确路线 →</a></div>
       </div>`;
     } else {
       infoHtml = `<div class="card" style="padding:14px;text-align:center">
