@@ -922,7 +922,7 @@ function clothingAdvice(weatherDays) {
 // ============================================================
 let setupStep = 1;
 let formSubStep = 1;  // sub-steps within the form (step 1)
-const TOTAL_SUB_STEPS = 13;
+const TOTAL_SUB_STEPS = 12;
 let setupData = {people:'2',budget:'3000'};
 let animating = false;
 let geoResult = null;
@@ -1088,36 +1088,40 @@ function navigateSubStep(dir) {
 
 function validateCurrentStep() {
   const c = formSubStep;
-  if (c===2){ const v=(document.getElementById('f_departure')?.value||'').trim(); if(!v){toast('请输入出发地');return false} setupData.departure=v; }
-  if (c===3){ const v=(document.getElementById('f_dest')?.value||'').trim(); if(!v){toast('请输入目的地');return false} if(v===setupData.departure){toast('目的地不能和出发地相同');return false} setupData.dest=v; clearPreloadIfChanged(v); _preloadPromise=preloadAttractions(v); }
-  if (c===5){
+  if (c===1){ const v=(document.getElementById('f_departure')?.value||'').trim(); if(!v){toast('请输入出发地');return false} setupData.departure=v; }
+  if (c===2){ const v=(document.getElementById('f_dest')?.value||'').trim(); if(!v){toast('请输入目的地');return false} if(v===setupData.departure){toast('目的地不能和出发地相同');return false} setupData.dest=v; clearPreloadIfChanged(v); _preloadPromise=preloadAttractions(v); }
+  if (c===3){ if(!setupData.transport){toast('请选择出行方式');return false} }
+  if (c===4){
     const f=document.getElementById('f_dateFrom')?.value,t=document.getElementById('f_dateTo')?.value;
     if(!f||!t){toast('请选择出行日期');return false}
     if(new Date(t)<new Date(f)){toast('返回日期不能早于出发日期');return false}
     setupData.dateFrom=f; setupData.dateTo=t;
   }
-  if (c===4){ if(!setupData.transport){toast('请选择出行方式');return false} }
-  if (c===5){ const v=(document.getElementById('f_departure')?.value||'').trim(); if(!v){toast('请输入出发地');return false} if(v===setupData.dest){toast('出发地不能和目的地相同');return false} setupData.departure=v; }
-  if (c===6){ /* Transport info display only, no validation */ }
-  if (c===7){ setupData.people=(document.getElementById('f_people')?.value)||'2'; }
-  if (c===8){ if(!setupData.accomZone){toast('请选择住宿地段');return false} }
-  if (c===9){ if(!setupData.accomType){toast('请选择住宿类型');return false} }
-  if (c===10){ setupData.budget=(document.getElementById('f_budget')?.value)||'3000'; }
+  if (c===5){ /* Transport info display only */ }
+  if (c===6){ setupData.people=(document.getElementById('f_people')?.value)||'2'; }
+  if (c===7){ if(!setupData.accomZone){toast('请选择住宿地段');return false} }
+  if (c===8){ if(!setupData.accomType){toast('请选择住宿类型');return false} }
+  if (c===9){ setupData.budget=(document.getElementById('f_budget')?.value)||'3000'; }
   return true;
 }
 
 function buildCard(step, card) {
   card.innerHTML = '';
   if (step===1) {
-    // --- Welcome ---
+    // --- Departure ---
     card.innerHTML = `
-      <div class="step-card-icon">🗺️</div>
-      <div class="step-card-title">欢迎开始规划旅程</div>
-      <div class="step-card-sub">几步简单设置，获得一份专属旅行计划</div>
-      <div class="step-card-content" style="text-align:center;color:var(--sub);font-size:.85rem">
-        ✈️ 目的地 · 📅 日期 · 🚗 方式 · 💰 预算<br>🏯 景点推荐 · 🌤️ 天气预报 · 👕 着装建议
+      <div class="step-card-icon">📍</div>
+      <div class="step-card-title">您从哪里出发？</div>
+      <div class="step-card-sub">输入出发城市名称</div>
+      <div class="step-card-content">
+        <input type="text" id="f_departure" placeholder="如：北京" value="${setupData.departure||''}" style="font-size:1.1rem;text-align:center">
+        <div class="dest-quick">${HOT_DEPARTURES.map(d=>`<span class="dest-quick-item" onclick="pickDeparture('${d}')">${d}</span>`).join('')}</div>
       </div>
     `;
+    setTimeout(()=>{
+      const inp = document.getElementById('f_departure');
+      if(inp) inp.addEventListener('keydown',e=>{ if(e.key==='Enter') navigateSubStep(1); });
+    },50);
   } else if (step===2) {
     // --- Destination ---
     card.innerHTML = `
@@ -1134,22 +1138,6 @@ function buildCard(step, card) {
       if(inp) inp.addEventListener('keydown',e=>{ if(e.key==='Enter') navigateSubStep(1); });
     },50);
   } else if (step===3) {
-    // --- Destination ---
-    card.innerHTML = `
-      <div class="step-card-icon">🌍</div>
-      <div class="step-card-title">你要去哪里？</div>
-      <div class="step-card-sub">输入目的地城市名称</div>
-      <div class="step-card-content">
-        <input type="text" id="f_dest" placeholder="如：成都" value="${setupData.dest||''}" style="font-size:1.1rem;text-align:center">
-        <div class="dest-quick">${HOT_DESTINATIONS.map(d=>`<span class="dest-quick-item" onclick="pickDest('${d}')">${d}</span>`).join('')}</div>
-        ${setupData.departure?`<div class="hint" style="text-align:center;margin-top:8px">出发地：${setupData.departure}</div>`:''}
-      </div>
-    `;
-    setTimeout(()=>{
-      const inp = document.getElementById('f_dest');
-      if(inp) inp.addEventListener('keydown',e=>{ if(e.key==='Enter') navigateSubStep(1); });
-    },50);
-  } else if (step===4) {
     // --- Transport ---
     const opts = [{v:'✈️ 飞机',icon:'✈️',desc:'快速直达，适合远途'},{v:'🚄 高铁',icon:'🚄',desc:'准时舒适，适合中短途'},{v:'🚗 自驾',icon:'🚗',desc:'自由灵活，随走随停'},{v:'🚌 大巴',icon:'🚌',desc:'经济实惠'},{v:'🚲 骑行',icon:'🚲',desc:'慢旅行，深度体验'}];
     card.innerHTML = `
@@ -1158,7 +1146,7 @@ function buildCard(step, card) {
       <div class="step-card-sub">不同的出行方式会带来不同的体验</div>
       <div class="step-card-content"><div class="radio-group" id="rg_transport">${opts.map(o=>`<div class="radio-item${setupData.transport===o.v?' selected':''}" data-v="${o.v}" onclick="pickRadio('transport','${o.v}',this)">${o.icon} ${o.v.slice(3)}<br><small style="font-size:.7rem;color:inherit;opacity:.7">${o.desc}</small></div>`).join('')}</div></div>
     `;
-  } else if (step===5) {
+  } else if (step===4) {
     // --- Dates ---
     const df = setupData.dateFrom||'';
     const dt = setupData.dateTo||'';
@@ -1176,7 +1164,7 @@ function buildCard(step, card) {
       if(fi)fi.addEventListener('change',()=>{ setupData.dateFrom=fi.value; if(ti)ti.min=fi.value; });
       if(ti)ti.addEventListener('change',()=>{ setupData.dateTo=ti.value; });
     },50);
-  } else if (step===6) {
+  } else if (step===5) {
     // --- Transport info (dynamic based on transport type) ---
     const from = setupData.departure||'出发地';
     const to = setupData.dest||'目的地';
@@ -1217,7 +1205,7 @@ function buildCard(step, card) {
       <div class="step-card-sub">${setupData.transport||'出行'} · ${from} → ${to}</div>
       <div class="step-card-content">${infoHtml}</div>
     `;
-  } else if (step===7) {
+  } else if (step===6) {
     // --- People count ---
     card.innerHTML = `
       <div class="step-card-icon">👥</div>
@@ -1232,7 +1220,7 @@ function buildCard(step, card) {
         <input type="hidden" id="f_people" value="${setupData.people||2}">
       </div>
     `;
-  } else if (step===8) {
+  } else if (step===7) {
     // --- Accommodation zone ---
     const opts = [{v:'🏢 市中心',desc:'交通便利，吃喝玩乐步行可达'},{v:'🌳 郊区',desc:'环境安静，价格更实惠'}];
     card.innerHTML = `
@@ -1241,7 +1229,7 @@ function buildCard(step, card) {
       <div class="step-card-sub">选择住宿地段</div>
       <div class="step-card-content"><div class="radio-group" id="rg_accomZone">${opts.map(o=>`<div class="radio-item${setupData.accomZone===o.v?' selected':''}" data-v="${o.v}" onclick="pickRadio('accomZone','${o.v}',this)">${o.v}<br><small style="font-size:.7rem;color:inherit;opacity:.7">${o.desc}</small></div>`).join('')}</div></div>
     `;
-  } else if (step===9) {
+  } else if (step===8) {
     // --- Accommodation type ---
     const opts = [{v:'🏨 酒店',icon:'🏨',desc:'标准化服务，设施完善'},{v:'🏡 民宿',icon:'🏡',desc:'当地风情，像在家一样'},{v:'🛏️ 青旅',icon:'🛏️',desc:'经济实惠，适合背包客'}];
     card.innerHTML = `
@@ -1250,7 +1238,7 @@ function buildCard(step, card) {
       <div class="step-card-sub">酒店、民宿还是青旅？</div>
       <div class="step-card-content"><div class="radio-group" id="rg_accomType">${opts.map(o=>`<div class="radio-item${setupData.accomType===o.v?' selected':''}" data-v="${o.v}" onclick="pickRadio('accomType','${o.v}',this)">${o.icon} ${o.v.slice(3)}<br><small style="font-size:.7rem;color:inherit;opacity:.7">${o.desc}</small></div>`).join('')}</div></div>
     `;
-  } else if (step===10) {
+  } else if (step===9) {
     // --- Budget ---
     const val = parseInt(setupData.budget||'3000')||3000;
     card.innerHTML = `
@@ -1263,7 +1251,7 @@ function buildCard(step, card) {
         <div class="budget-labels"><span>¥500</span><span>¥5,000</span><span>¥10,000</span><span>¥20,000</span><span>¥30,000</span></div>
       </div>
     `;
-  } else if (step===11) {
+  } else if (step===10) {
     // --- Travel preferences ---
     const allTags = ['🏛️ 人文历史','🌿 自然风光','🍜 美食探店','🛍️ 购物','👨‍👩‍👧 亲子','🧗 冒险','🏖️ 休闲度假','📸 拍照打卡','🎭 演出展览','🏄 运动体验'];
     const sel = setupData.tags||[];
@@ -1273,7 +1261,7 @@ function buildCard(step, card) {
       <div class="step-card-sub">多选，选你喜欢的</div>
       <div class="step-card-content"><div class="tags" id="tg_tags">${allTags.map(t=>`<div class="tag${sel.includes(t)?' selected':''}" onclick="toggleTag('tags','${t}',this)">${t}</div>`).join('')}</div></div>
     `;
-  } else if (step===12) {
+  } else if (step===11) {
     // --- Diet ---
     const allDiet = ['✅ 无忌口','🥬 素食','🕌 清真','🥜 坚果过敏','🦐 海鲜过敏','🌶️ 不吃辣','🥛 乳糖不耐','🐷 不吃猪肉'];
     const sel = setupData.dietTags||[];
@@ -1283,7 +1271,7 @@ function buildCard(step, card) {
       <div class="step-card-sub">多选，方便安排餐厅</div>
       <div class="step-card-content"><div class="tags" id="tg_diet">${allDiet.map(t=>`<div class="tag${sel.includes(t)?' selected':''}" onclick="toggleTag('dietTags','${t}',this)">${t}</div>`).join('')}</div></div>
     `;
-  } else if (step===13) {
+  } else if (step===12) {
     // --- Person info ---
     // Ensure persons array matches people count
     const ppl = parseInt(setupData.people||'2')||2;
