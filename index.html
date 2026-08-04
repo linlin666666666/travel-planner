@@ -174,6 +174,36 @@ h3{font-size:1rem;font-weight:600}
   body{display:flex;justify-content:center}
   .screen{max-width:480px;margin:0 auto;border-left:1px solid var(--border);border-right:1px solid var(--border)}
 }
+
+/* ===== Step Card Animation ===== */
+.step-card-wrapper{position:relative;overflow:hidden;min-height:320px}
+.step-card{position:absolute;width:100%;padding:24px 20px;background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);transition:transform .35s cubic-bezier(.4,0,.2,1),opacity .35s cubic-bezier(.4,0,.2,1);opacity:0;pointer-events:none}
+.step-card.current{position:relative;opacity:1;pointer-events:auto;transform:translateX(0)}
+.step-card.enter-next{transform:translateX(60px);opacity:0}
+.step-card.enter-prev{transform:translateX(-60px);opacity:0}
+.step-card.leave-prev{transform:translateX(60px)}
+.step-card.leave-next{transform:translateX(-60px)}
+.step-progress{display:flex;align-items:center;gap:4px;margin-bottom:20px}
+.step-progress-bar{flex:1;height:3px;background:var(--border);border-radius:2px;overflow:hidden}
+.step-progress-fill{height:100%;background:var(--c1);transition:width .35s ease}
+.step-progress-text{font-size:.72rem;color:var(--sub);font-weight:600;min-width:36px;text-align:right}
+.step-card-icon{font-size:2.5rem;text-align:center;margin-bottom:8px}
+.step-card-title{font-size:1.1rem;font-weight:700;text-align:center;margin-bottom:4px}
+.step-card-sub{font-size:.8rem;color:var(--sub);text-align:center;margin-bottom:20px}
+.step-card-content{margin-bottom:20px}
+.dest-quick{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.dest-quick-item{padding:8px 14px;border-radius:20px;background:var(--bg);border:1px solid var(--border);font-size:.82rem;cursor:pointer;transition:.2s}
+.dest-quick-item:active{background:var(--c1);color:#fff;border-color:var(--c1)}
+.step-nav{display:flex;gap:10px;justify-content:space-between}
+.step-nav button{flex:1}
+.step-nav button:only-child{max-width:280px;margin:0 auto}
+.budget-slider{width:100%;height:8px;-webkit-appearance:none;appearance:none;background:var(--border);border-radius:4px;outline:none}
+.budget-slider::-webkit-slider-thumb{-webkit-appearance:none;width:28px;height:28px;border-radius:50%;background:var(--c1);cursor:pointer;box-shadow:var(--shadow)}
+.budget-labels{display:flex;justify-content:space-between;font-size:.72rem;color:var(--sub);margin-top:8px}
+.budget-display{text-align:center;font-size:1.6rem;font-weight:700;color:var(--c1);margin:10px 0}
+.person-card{margin-bottom:8px;padding:12px;border-radius:var(--radius-sm);background:var(--bg);border:1px solid var(--border)}
+.person-card h4{font-size:.85rem;margin-bottom:8px;color:var(--c2)}
+.person-card input{margin-bottom:6px}
 </style>
 </head>
 <body>
@@ -820,11 +850,17 @@ function clothingAdvice(weatherDays) {
 // SETUP WIZARD
 // ============================================================
 let setupStep = 1;
-let setupData = {};
+let formSubStep = 1;  // sub-steps within the form (step 1)
+const TOTAL_SUB_STEPS = 11;
+let setupData = {people:'2',budget:'3000'};
+let animating = false;
 let geoResult = null;
 let attractionsData = [];
 let weatherData = null;
 let tripDays = 0;
+
+// Hot destinations for quick pick
+const HOT_DESTINATIONS = ['北京','上海','成都','杭州','三亚','厦门','西安','重庆','广州','丽江','大理','桂林'];
 
 function renderSetupStep() {
   const body = $('#setup-body');
@@ -833,248 +869,397 @@ function renderSetupStep() {
   footer.innerHTML = '';
 
   if (setupStep === 1) {
-    // ---- STEP 1: Form ----
-    body.innerHTML = `
-      <div class="step-indicator"><span class="step-dot current"></span><span class="step-dot"></span><span class="step-dot"></span></div>
-      <h2 style="margin-bottom:16px">📋 填写旅行信息</h2>
-    `;
-    const fields = [
-      {id:'dest',label:'🌍 目的地',type:'text',ph:'如：东京'},
-      {id:'dateFrom',label:'📅 出发日期',type:'date'},
-      {id:'dateTo',label:'📅 返回日期',type:'date'},
-      {id:'transport',label:'🚗 出行方式',type:'radio',opts:['✈️ 飞机','🚄 高铁','🚗 自驾','🚌 大巴','🚲 骑行']},
-      {id:'people',label:'👥 同行人数（含自己）',type:'number',ph:'如：3',min:1,max:20},
-      {id:'accomZone',label:'🏙️ 住宿地段',type:'radio',opts:['🏢 市中心','🌳 郊区']},
-      {id:'accomType',label:'🏨 住宿类型',type:'radio',opts:['🏨 酒店','🏡 民宿']},
-      {id:'budget',label:'💰 人均预算（元）',type:'number',ph:'如：5000',min:0},
-      {id:'tags',label:'🎯 旅行偏好（多选）',type:'tags',opts:['🍜 美食','🏛️ 文化','🌿 自然','🛍️ 购物','📸 拍照','🎢 娱乐']},
-      {id:'diet',label:'🍽️ 饮食禁忌',type:'text',ph:'如：不吃辣、清真'},
-      {id:'emergency',label:'📞 紧急联系人（可选）',type:'text',ph:'姓名 电话'},
-    ];
-    fields.forEach(f => {
-      const g = el('div',{className:'form-group'});
-      g.appendChild(el('label',{className:'label'},f.label));
-      if (f.type === 'text' || f.type === 'number' || f.type === 'date') {
-        const inp = el('input',{type:f.type,id:'f_'+f.id,placeholder:f.ph||''});
-        if (f.min) inp.min = f.min;
-        if (f.max) inp.max = f.max;
-        if (f.id === 'people') inp.value = setupData.people||'2';
-        if (f.id === 'dateFrom') { inp.value = setupData.dateFrom||''; inp.addEventListener('change',()=>{ document.getElementById('f_dateTo').min = inp.value; }); }
-        if (f.id === 'dateTo') { inp.value = setupData.dateTo||''; if(setupData.dateFrom) inp.min = setupData.dateFrom; }
-        if (setupData[f.id]) inp.value = setupData[f.id];
-        g.appendChild(inp);
-      } else if (f.type === 'radio') {
-        const rg = el('div',{className:'radio-group',id:'rg_'+f.id});
-        f.opts.forEach(o => {
-          const ri = el('div',{className:'radio-item',onclick:function(){
-            $$('.radio-item',rg).forEach(r=>r.classList.remove('selected'));
-            ri.classList.add('selected');
-            setupData[f.id] = o;
-          }}, o);
-          if (setupData[f.id] === o) ri.classList.add('selected');
-          rg.appendChild(ri);
-        });
-        g.appendChild(rg);
-      } else if (f.type === 'tags') {
-        const tg = el('div',{className:'tags',id:'tg_'+f.id});
-        f.opts.forEach(o => {
-          const t = el('div',{className:'tag',onclick:function(){
-            t.classList.toggle('selected');
-            setupData[f.id] = $$('.selected',tg).map(x=>x.textContent.trim());
-          }}, o);
-          if (setupData[f.id] && setupData[f.id].includes(o)) t.classList.add('selected');
-          tg.appendChild(t);
-        });
-        g.appendChild(tg);
-      }
-      body.appendChild(g);
-    });
-
-    // Dynamic person rows
-    const ppl = parseInt(setupData.people||'2')||2;
-    body.appendChild(el('label',{className:'label'},'👤 每人信息'));
-    const pc = el('div',{id:'person-container'});
-    for (let i=0;i<ppl;i++) {
-      const row = el('div',{className:'person-row'});
-      const ninp = el('input',{type:'text',placeholder:'姓名',id:`pname_${i}`});
-      if ((setupData.persons||[])[i]) ninp.value = setupData.persons[i].name||'';
-      const gdiv = el('div',{className:'gender-btns'});
-      ['男','女'].forEach(g=>{
-        const gb = el('div',{className:'gender-btn',onclick:function(){
-          $$('.gender-btn',gdiv).forEach(b=>b.classList.remove('sel'));
-          gb.classList.add('sel');
-        }}, g==='男'?'👨':'👩');
-        if ((setupData.persons||[])[i] && setupData.persons[i].gender === g) gb.classList.add('sel');
-        gdiv.appendChild(gb);
-      });
-      row.appendChild(ninp);
-      row.appendChild(gdiv);
-      pc.appendChild(row);
-    }
-    body.appendChild(pc);
-
-    // Listen for people count change
-    document.getElementById('f_people').addEventListener('change',function(){
-      setupData.people = this.value;
-      renderSetupStep();
-    });
-
-    footer.innerHTML = '<button class="btn btn-primary btn-block" id="step1-next">下一步 → 景点推荐</button>';
-    document.getElementById('step1-next').addEventListener('click', goStep2);
-
+    renderFormCard(body, footer);
   } else if (setupStep === 2) {
-    // ---- STEP 2: Attractions ----
-    body.innerHTML = `
-      <div class="step-indicator"><span class="step-dot done"></span><span class="step-dot current"></span><span class="step-dot"></span></div>
-      <h2 style="margin-bottom:16px">🏯 ${setupData.dest} 热门景点</h2>
-      <div id="attrs-loading" class="loading"><div class="spinner"></div><span>正在搜索景点…</span></div>
-      <div id="attrs-container"></div>
-    `;
-    footer.innerHTML = '<button class="btn btn-primary btn-block" id="step2-next">下一步 → 天气 & 着装</button>';
-    document.getElementById('step2-next').addEventListener('click', goStep3);
-
-    // Fetch attractions
-    (async () => {
-      try {
-        if (!geoResult) geoResult = await geocode(setupData.dest);
-        const result = await fetchAttractions(setupData.dest, geoResult.lat, geoResult.lon);
-        attractionsData = result.data;
-        const container = $('#attrs-container');
-        $('#attrs-loading').style.display = 'none';
-
-        // Show source badge
-        const srcBadge = result.source==='builtin'
-          ? '<div style="text-align:center;font-size:.75rem;color:var(--c3);margin-bottom:8px">📦 内置景点数据（在线API不可用时）</div>'
-          : '<div style="text-align:center;font-size:.75rem;color:var(--sub);margin-bottom:8px">🌐 实时数据</div>';
-
-        if (!result.data.length) {
-          container.innerHTML = srcBadge+'<p style="text-align:center;color:var(--sub);padding:20px">该城市暂无景点数据<br><small>你可以后续手动添加景点</small></p>';
-          return;
-        }
-        container.innerHTML = srcBadge;
-        result.data.forEach((item,i) => {
-          const card = el('div',{className:'attr-card'});
-          const img = el('div',{className:'attr-img'}, item.type==='公园'?'🌳':item.type==='博物馆'?'🏛️':item.type==='城堡'?'🏰':item.type==='寺庙'?'🛕':item.type==='观景台'?'🏔️':'🏯');
-          const body = el('div',{className:'attr-body'});
-          body.appendChild(el('span',{className:'attr-type'}, item.type));
-          body.appendChild(el('div',{className:'attr-name'}, item.name));
-          body.appendChild(el('div',{className:'attr-loc'}, `📍 ${result.source==='builtin'?setupData.dest:geoResult.display_name.split(',')[0]}`));
-          // Description
-          const descText = item.desc || (result.source==='api'?'加载简介中…':'暂无简介');
-          body.appendChild(el('div',{className:'attr-desc'}, descText));
-          // Tips
-          const tip = item.tip || (result.source==='api'?'✨ 提前查看开放时间，避开高峰时段':'✨ 提前了解开放时间');
-          body.appendChild(el('div',{className:'attr-tip'}, `💡 ${tip}`));
-
-          const actions = el('div',{className:'attr-actions'});
-          const skipBtn = el('button',{className:'btn btn-ghost btn-sm'}, '❌ 不去');
-          const goBtn = el('button',{className:'btn btn-outline btn-sm',onclick:()=>{
-            if (!state.picked.find(p=>p.id===item.id)) {
-              state.picked.push({...item,tip});
-              saveState();
-              toast('✅ 已加入收藏！');
-              goBtn.textContent = '✅ 已选';
-              goBtn.className = 'btn btn-success btn-sm';
-            }
-          }}, '✅ 想去');
-          if (state.picked.find(p=>p.id===item.id)) {
-            goBtn.textContent = '✅ 已选';
-            goBtn.className = 'btn btn-success btn-sm';
-          }
-          skipBtn.addEventListener('click',()=>{ card.style.opacity='0.4'; });
-          actions.appendChild(skipBtn);
-          actions.appendChild(goBtn);
-          body.appendChild(actions);
-          card.appendChild(img);
-          card.appendChild(body);
-          container.appendChild(card);
-
-          // Async fetch wiki (only for API-sourced items without desc)
-          if (result.source==='api' && !item.desc) {
-            fetchWikiSummary(item.name).then(summary => {
-              if (summary) { const d = card.querySelector('.attr-desc'); if(d)d.textContent = summary; }
-              else { const d = card.querySelector('.attr-desc'); if(d)d.textContent = '暂无简介'; }
-            });
-          }
-        });
-      } catch(e) {
-        $('#attrs-loading').innerHTML = `<p style="text-align:center;color:var(--c4)">加载失败: ${e.message}<br><small>请检查网络连接后重试</small></p>`;
-      }
-    })();
-
+    renderAttractionsStep(body, footer);
   } else if (setupStep === 3) {
-    // ---- STEP 3: Weather ----
-    body.innerHTML = `
-      <div class="step-indicator"><span class="step-dot done"></span><span class="step-dot done"></span><span class="step-dot current"></span></div>
-      <h2 style="margin-bottom:16px">🌤️ ${setupData.dest} · 出行天气</h2>
-      <div id="weather-loading" class="loading"><div class="spinner"></div><span>正在获取天气…</span></div>
-      <div id="weather-container"></div>
-    `;
-    footer.innerHTML = '<button class="btn btn-primary btn-block" id="finish-setup">✨ 开始规划</button>';
-    document.getElementById('finish-setup').addEventListener('click', finishSetup);
-
-    (async () => {
-      try {
-        if (!geoResult) geoResult = await geocode(setupData.dest);
-        const w = await fetchWeather(geoResult.lat, geoResult.lon, setupData.dateFrom, setupData.dateTo);
-        weatherData = w;
-        $('#weather-loading').style.display = 'none';
-        const container = $('#weather-container');
-        if (!w) { container.innerHTML = '<p style="text-align:center;color:var(--sub)">天气数据暂不可用</p>'; return; }
-
-        // Weather row
-        const row = el('div',{className:'weather-row'});
-        w.forEach(d => {
-          const day = el('div',{className:'weather-day'});
-          day.innerHTML = `
-            <div class="w-date">${d.date.slice(5)}</div>
-            <div class="w-icon">${d.weather.slice(0,2)}</div>
-            <div class="w-temp">${Math.round(d.max)}° / ${Math.round(d.min)}°</div>
-            ${d.rain>0?`<div class="w-rain">🌧️ ${d.rain}%</div>`:''}
-          `;
-          row.appendChild(day);
-        });
-        container.appendChild(row);
-
-        // Clothing advice
-        const advice = clothingAdvice(w);
-        const dress = el('div',{className:'dress-card'});
-        dress.innerHTML = `<strong>👕 着装建议</strong><br>` + advice.map(a=>`• ${a}`).join('<br>');
-        container.appendChild(dress);
-
-      } catch(e) {
-        $('#weather-loading').innerHTML = `<p style="text-align:center;color:var(--c4)">加载失败: ${e.message}</p>`;
-      }
-    })();
+    renderWeatherStep(body, footer);
   }
 }
 
+function renderFormCard(body, footer) {
+  const total = TOTAL_SUB_STEPS;
+  const cur = formSubStep;
+  const pct = Math.round(cur/total*100);
+
+  // Progress bar
+  body.innerHTML = `
+    <div class="step-indicator" style="margin-bottom:12px">
+      ${Array.from({length:3},(_,i)=>`<span class="step-dot${i===0?' current':''}"></span>`).join('')}
+    </div>
+    <div class="step-progress">
+      <div class="step-progress-bar"><div class="step-progress-fill" style="width:${pct}%"></div></div>
+      <span class="step-progress-text">${cur}/${total}</span>
+    </div>
+    <div class="step-card-wrapper" id="card-wrapper"></div>
+  `;
+
+  const wrapper = $('#card-wrapper');
+  const oldCard = wrapper.querySelector('.step-card.current');
+  if (oldCard) { oldCard.classList.remove('current'); oldCard.classList.add(cur>formSubStep?'leave-next':'leave-prev'); }
+
+  const card = el('div',{className:'step-card current'});
+  buildCard(cur, card);
+  wrapper.appendChild(card);
+
+  // Footer buttons
+  const nav = el('div',{className:'step-nav'});
+  if (cur > 1) {
+    const prevBtn = el('button',{className:'btn btn-outline btn-sm',onclick:()=>navigateSubStep(-1)}, '← 上一步');
+    nav.appendChild(prevBtn);
+  }
+  if (cur < total) {
+    const nextBtn = el('button',{className:'btn btn-primary btn-sm',onclick:()=>navigateSubStep(1),id:'next-btn'}, '下一步 →');
+    nav.appendChild(nextBtn);
+  } else {
+    const doneBtn = el('button',{className:'btn btn-primary btn-sm',onclick:()=>navigateSubStep(1),id:'next-btn'}, '✓ 完成，看景点');
+    nav.appendChild(doneBtn);
+  }
+  footer.innerHTML = '';
+  footer.appendChild(nav);
+}
+
+function navigateSubStep(dir) {
+  if (animating) return;
+  if (dir===1 && !validateCurrentStep()) return;
+  const next = formSubStep + dir;
+  if (next < 1 || next > TOTAL_SUB_STEPS+1) return;
+  if (next === TOTAL_SUB_STEPS+1) { goStep2(); return; }
+  animating = true;
+  formSubStep = next;
+  renderSetupStep();
+  setTimeout(()=>{ animating=false; }, 360);
+}
+
+function validateCurrentStep() {
+  const c = formSubStep;
+  if (c===2){ const v=(document.getElementById('f_dest')?.value||'').trim(); if(!v){toast('请输入目的地');return false} setupData.dest=v; }
+  if (c===3){
+    const f=document.getElementById('f_dateFrom')?.value,t=document.getElementById('f_dateTo')?.value;
+    if(!f||!t){toast('请选择出行日期');return false}
+    if(new Date(t)<new Date(f)){toast('返回日期不能早于出发日期');return false}
+    setupData.dateFrom=f; setupData.dateTo=t;
+  }
+  if (c===4){ if(!setupData.transport){toast('请选择出行方式');return false} }
+  if (c===5){ setupData.people=(document.getElementById('f_people')?.value)||'2'; }
+  if (c===6){ if(!setupData.accomZone){toast('请选择住宿地段');return false} }
+  if (c===7){ if(!setupData.accomType){toast('请选择住宿类型');return false} }
+  if (c===8){ setupData.budget=(document.getElementById('f_budget')?.value)||'3000'; }
+  return true;
+}
+
+function buildCard(step, card) {
+  card.innerHTML = '';
+  if (step===1) {
+    // --- Welcome ---
+    card.innerHTML = `
+      <div class="step-card-icon">🗺️</div>
+      <div class="step-card-title">欢迎开始规划旅程</div>
+      <div class="step-card-sub">几步简单设置，获得一份专属旅行计划</div>
+      <div class="step-card-content" style="text-align:center;color:var(--sub);font-size:.85rem">
+        ✈️ 目的地 · 📅 日期 · 🚗 方式 · 💰 预算<br>🏯 景点推荐 · 🌤️ 天气预报 · 👕 着装建议
+      </div>
+    `;
+  } else if (step===2) {
+    // --- Destination ---
+    card.innerHTML = `
+      <div class="step-card-icon">🌍</div>
+      <div class="step-card-title">你要去哪里？</div>
+      <div class="step-card-sub">输入目的地城市名称</div>
+      <div class="step-card-content">
+        <input type="text" id="f_dest" placeholder="如：成都" value="${setupData.dest||''}" style="font-size:1.1rem;text-align:center">
+        <div class="dest-quick">${HOT_DESTINATIONS.map(d=>`<span class="dest-quick-item" onclick="pickDest('${d}')">${d}</span>`).join('')}</div>
+      </div>
+    `;
+    setTimeout(()=>{
+      const inp = document.getElementById('f_dest');
+      if(inp) inp.addEventListener('keydown',e=>{ if(e.key==='Enter') navigateSubStep(1); });
+    },50);
+  } else if (step===3) {
+    // --- Dates ---
+    const df = setupData.dateFrom||'';
+    const dt = setupData.dateTo||'';
+    card.innerHTML = `
+      <div class="step-card-icon">📅</div>
+      <div class="step-card-title">什么时候出发？</div>
+      <div class="step-card-sub">选择出发和返回日期</div>
+      <div class="step-card-content">
+        <div class="form-group"><label class="label">出发日期</label><input type="date" id="f_dateFrom" value="${df}"></div>
+        <div class="form-group"><label class="label">返回日期</label><input type="date" id="f_dateTo" value="${dt}" min="${df}"></div>
+      </div>
+    `;
+    setTimeout(()=>{
+      const fi=document.getElementById('f_dateFrom'),ti=document.getElementById('f_dateTo');
+      if(fi)fi.addEventListener('change',()=>{ setupData.dateFrom=fi.value; if(ti)ti.min=fi.value; });
+      if(ti)ti.addEventListener('change',()=>{ setupData.dateTo=ti.value; });
+    },50);
+  } else if (step===4) {
+    // --- Transport ---
+    const opts = [{v:'✈️ 飞机',icon:'✈️',desc:'快速直达，适合远途'},{v:'🚄 高铁',icon:'🚄',desc:'准时舒适，适合中短途'},{v:'🚗 自驾',icon:'🚗',desc:'自由灵活，随走随停'},{v:'🚌 大巴',icon:'🚌',desc:'经济实惠'},{v:'🚲 骑行',icon:'🚲',desc:'慢旅行，深度体验'}];
+    card.innerHTML = `
+      <div class="step-card-icon">${setupData.transport?setupData.transport.slice(0,2):'🚗'}</div>
+      <div class="step-card-title">选择出行方式</div>
+      <div class="step-card-sub">不同的出行方式会带来不同的体验</div>
+      <div class="step-card-content"><div class="radio-group" id="rg_transport">${opts.map(o=>`<div class="radio-item${setupData.transport===o.v?' selected':''}" data-v="${o.v}" onclick="pickRadio('transport','${o.v}',this)">${o.icon} ${o.v.slice(3)}<br><small style="font-size:.7rem;color:inherit;opacity:.7">${o.desc}</small></div>`).join('')}</div></div>
+    `;
+  } else if (step===5) {
+    // --- People count ---
+    card.innerHTML = `
+      <div class="step-card-icon">👥</div>
+      <div class="step-card-title">几个人一起？</div>
+      <div class="step-card-sub">包含你自己</div>
+      <div class="step-card-content" style="text-align:center">
+        <div style="display:flex;align-items:center;justify-content:center;gap:16px">
+          <button class="btn btn-outline btn-sm" onclick="changePeople(-1)" style="font-size:1.2rem;width:48px;height:48px;border-radius:50%">−</button>
+          <span style="font-size:2rem;font-weight:700;min-width:60px" id="people-display">${setupData.people||2}</span>
+          <button class="btn btn-outline btn-sm" onclick="changePeople(1)" style="font-size:1.2rem;width:48px;height:48px;border-radius:50%">+</button>
+        </div>
+        <input type="hidden" id="f_people" value="${setupData.people||2}">
+      </div>
+    `;
+  } else if (step===6) {
+    // --- Accommodation zone ---
+    const opts = [{v:'🏢 市中心',desc:'交通便利，吃喝玩乐步行可达'},{v:'🌳 郊区',desc:'环境安静，价格更实惠'}];
+    card.innerHTML = `
+      <div class="step-card-icon">🏙️</div>
+      <div class="step-card-title">住哪里？</div>
+      <div class="step-card-sub">选择住宿地段</div>
+      <div class="step-card-content"><div class="radio-group" id="rg_accomZone">${opts.map(o=>`<div class="radio-item${setupData.accomZone===o.v?' selected':''}" data-v="${o.v}" onclick="pickRadio('accomZone','${o.v}',this)">${o.v}<br><small style="font-size:.7rem;color:inherit;opacity:.7">${o.desc}</small></div>`).join('')}</div></div>
+    `;
+  } else if (step===7) {
+    // --- Accommodation type ---
+    const opts = [{v:'🏨 酒店',icon:'🏨',desc:'标准化服务，设施完善'},{v:'🏡 民宿',icon:'🏡',desc:'当地风情，像在家一样'},{v:'🛏️ 青旅',icon:'🛏️',desc:'经济实惠，适合背包客'}];
+    card.innerHTML = `
+      <div class="step-card-icon">🏨</div>
+      <div class="step-card-title">住什么类型？</div>
+      <div class="step-card-sub">酒店、民宿还是青旅？</div>
+      <div class="step-card-content"><div class="radio-group" id="rg_accomType">${opts.map(o=>`<div class="radio-item${setupData.accomType===o.v?' selected':''}" data-v="${o.v}" onclick="pickRadio('accomType','${o.v}',this)">${o.icon} ${o.v.slice(3)}<br><small style="font-size:.7rem;color:inherit;opacity:.7">${o.desc}</small></div>`).join('')}</div></div>
+    `;
+  } else if (step===8) {
+    // --- Budget ---
+    const val = parseInt(setupData.budget||'3000')||3000;
+    card.innerHTML = `
+      <div class="step-card-icon">💰</div>
+      <div class="step-card-title">人均预算是多少？</div>
+      <div class="step-card-sub">用于参考和记账提醒</div>
+      <div class="step-card-content">
+        <div class="budget-display">¥<span id="budget-val">${val.toLocaleString()}</span></div>
+        <input type="range" class="budget-slider" id="f_budget" min="500" max="30000" step="500" value="${val}" oninput="document.getElementById('budget-val').textContent=Number(this.value).toLocaleString()">
+        <div class="budget-labels"><span>¥500</span><span>¥5,000</span><span>¥10,000</span><span>¥20,000</span><span>¥30,000</span></div>
+      </div>
+    `;
+  } else if (step===9) {
+    // --- Travel preferences ---
+    const allTags = ['🏛️ 人文历史','🌿 自然风光','🍜 美食探店','🛍️ 购物','👨‍👩‍👧 亲子','🧗 冒险','🏖️ 休闲度假','📸 拍照打卡','🎭 演出展览','🏄 运动体验'];
+    const sel = setupData.tags||[];
+    card.innerHTML = `
+      <div class="step-card-icon">🎯</div>
+      <div class="step-card-title">喜欢什么样的旅行？</div>
+      <div class="step-card-sub">多选，选你喜欢的</div>
+      <div class="step-card-content"><div class="tags" id="tg_tags">${allTags.map(t=>`<div class="tag${sel.includes(t)?' selected':''}" onclick="toggleTag('tags','${t}',this)">${t}</div>`).join('')}</div></div>
+    `;
+  } else if (step===10) {
+    // --- Diet ---
+    const allDiet = ['✅ 无忌口','🥬 素食','🕌 清真','🥜 坚果过敏','🦐 海鲜过敏','🌶️ 不吃辣','🥛 乳糖不耐','🐷 不吃猪肉'];
+    const sel = setupData.dietTags||[];
+    card.innerHTML = `
+      <div class="step-card-icon">🍽️</div>
+      <div class="step-card-title">有什么饮食要求？</div>
+      <div class="step-card-sub">多选，方便安排餐厅</div>
+      <div class="step-card-content"><div class="tags" id="tg_diet">${allDiet.map(t=>`<div class="tag${sel.includes(t)?' selected':''}" onclick="toggleTag('dietTags','${t}',this)">${t}</div>`).join('')}</div></div>
+    `;
+  } else if (step===11) {
+    // --- Person info ---
+    const ppl = parseInt(setupData.people||'2')||2;
+    let html = '<div class="step-card-icon">👤</div><div class="step-card-title">填写同伴信息</div><div class="step-card-sub">根据人数动态生成</div><div class="step-card-content">';
+    for (let i=0;i<ppl;i++) {
+      const p = (setupData.persons||[])[i]||{};
+      html += `<div class="person-card">
+        <h4>👤 第${i+1}位${i===0?'（你自己）':''}</h4>
+        <input type="text" placeholder="姓名" id="pname_${i}" value="${p.name||''}">
+        <input type="text" placeholder="身份证号" id="pid_${i}" value="${p.id||''}" maxlength="18">
+        <input type="tel" placeholder="手机号" id="pphone_${i}" value="${p.phone||''}" maxlength="11">
+        <div class="gender-btns" id="pgender_${i}">
+          <div class="gender-btn${p.gender==='男'?' sel':''}" onclick="pickGender(${i},'男',this)">👨 男</div>
+          <div class="gender-btn${p.gender==='女'?' sel':''}" onclick="pickGender(${i},'女',this)">👩 女</div>
+        </div>
+      </div>`;
+    }
+    html += '</div>';
+    card.innerHTML = html;
+  }
+}
+
+// ---- Helper functions for card interactions ----
+function pickDest(city) {
+  setupData.dest = city;
+  const inp = document.getElementById('f_dest');
+  if (inp) inp.value = city;
+  setTimeout(()=>navigateSubStep(1), 200);
+}
+
+function pickRadio(field, val, el) {
+  setupData[field] = val;
+  const parent = el.parentElement;
+  if (parent) { $$('.radio-item',parent).forEach(r=>r.classList.remove('selected')); }
+  el.classList.add('selected');
+  if (field==='transport'||field==='accomZone'||field==='accomType') setTimeout(()=>navigateSubStep(1), 250);
+}
+
+function changePeople(delta) {
+  const cur = parseInt(setupData.people||'2')||2;
+  const next = Math.max(1,Math.min(20,cur+delta));
+  if (next===cur) return;
+  setupData.people = String(next);
+  const disp = document.getElementById('people-display');
+  const hid = document.getElementById('f_people');
+  if (disp) disp.textContent = next;
+  if (hid) hid.value = next;
+}
+
+function toggleTag(field, val, el) {
+  el.classList.toggle('selected');
+  const arr = setupData[field]||[];
+  if (el.classList.contains('selected')) { if(!arr.includes(val)) arr.push(val); }
+  else { const idx = arr.indexOf(val); if(idx>-1) arr.splice(idx,1); }
+  setupData[field] = arr;
+}
+
+function pickGender(idx, gender, el) {
+  const parent = el.parentElement;
+  if (parent) { $$('.gender-btn',parent).forEach(b=>b.classList.remove('sel')); }
+  el.classList.add('sel');
+  if (!setupData.persons) setupData.persons = [];
+  while (setupData.persons.length <= idx) setupData.persons.push({});
+  setupData.persons[idx].gender = gender;
+}
+
 function goStep2() {
-  // Collect form data
-  setupData.dest = document.getElementById('f_dest')?.value?.trim();
-  setupData.dateFrom = document.getElementById('f_dateFrom')?.value;
-  setupData.dateTo = document.getElementById('f_dateTo')?.value;
-  setupData.people = document.getElementById('f_people')?.value;
-  setupData.budget = document.getElementById('f_budget')?.value;
-  setupData.diet = document.getElementById('f_diet')?.value?.trim();
-  setupData.emergency = document.getElementById('f_emergency')?.value?.trim();
+  // Collect all form data
+  setupData.dest = (document.getElementById('f_dest')?.value||setupData.dest||'').trim();
+  setupData.dateFrom = document.getElementById('f_dateFrom')?.value||setupData.dateFrom||'';
+  setupData.dateTo = document.getElementById('f_dateTo')?.value||setupData.dateTo||'';
+  setupData.people = document.getElementById('f_people')?.value||setupData.people||'2';
+  setupData.budget = document.getElementById('f_budget')?.value||setupData.budget||'3000';
 
   if (!setupData.dest) return toast('请输入目的地');
-  if (!setupData.dateFrom || !setupData.dateTo) return toast('请选择出行日期');
-  if (new Date(setupData.dateTo) < new Date(setupData.dateFrom)) return toast('返回日期不能早于出发日期');
+  if (!setupData.dateFrom||!setupData.dateTo) return toast('请选择出行日期');
+  if (new Date(setupData.dateTo)<new Date(setupData.dateFrom)) return toast('返回日期不能早于出发日期');
+
+  // Collect person info
   const ppl = parseInt(setupData.people)||2;
   const persons = [];
   for (let i=0;i<ppl;i++) {
-    const nm = document.getElementById(`pname_${i}`)?.value?.trim()||`旅伴${i+1}`;
-    const gBtns = document.getElementById(`pname_${i}`)?.parentElement?.querySelectorAll('.gender-btn.sel');
-    const g = gBtns && gBtns.length>0 ? (gBtns[0].textContent.includes('男')?'男':'女') : '未选';
-    persons.push({name:nm,gender:g});
+    const nm = (document.getElementById(`pname_${i}`)?.value||`旅伴${i+1}`).trim();
+    const idNo = (document.getElementById(`pid_${i}`)?.value||'').trim();
+    const phone = (document.getElementById(`pphone_${i}`)?.value||'').trim();
+    // Gender from stored data
+    const g = (setupData.persons||[])[i]?.gender||'未选';
+    // ID validation
+    if (idNo && !/^\d{17}[\dXx]$/.test(idNo)) return toast(`「${nm}」身份证号格式不正确`);
+    // Phone validation
+    if (phone && !/^1\d{10}$/.test(phone)) return toast(`「${nm}」手机号格式不正确`);
+    persons.push({name:nm,id:idNo,phone:phone,gender:g});
   }
   setupData.persons = persons;
 
+  // Combine diet tags
+  setupData.diet = (setupData.dietTags||[]).filter(t=>t!=='✅ 无忌口').join('、');
+
   setupStep = 2;
+  formSubStep = 1;
   $('#setup-body').scrollTop = 0;
   renderSetupStep();
+}
+
+// ---- Step 2: Attractions Rendering ----
+function renderAttractionsStep(body, footer) {
+  body.innerHTML = `
+    <div class="step-indicator"><span class="step-dot done"></span><span class="step-dot current"></span><span class="step-dot"></span></div>
+    <h2 style="margin-bottom:16px">🏯 ${setupData.dest} 热门景点</h2>
+    <div id="attrs-loading" class="loading"><div class="spinner"></div><span>正在搜索景点…</span></div>
+    <div id="attrs-container"></div>
+  `;
+  footer.innerHTML = '<button class="btn btn-primary btn-block" id="step2-next">下一步 → 天气 & 着装</button>';
+  document.getElementById('step2-next').addEventListener('click', goStep3);
+
+  (async () => {
+    try {
+      if (!geoResult) geoResult = await geocode(setupData.dest);
+      const result = await fetchAttractions(setupData.dest, geoResult.lat, geoResult.lon);
+      attractionsData = result.data;
+      const container = $('#attrs-container');
+      $('#attrs-loading').style.display = 'none';
+      const srcBadge = result.source==='builtin'
+        ? '<div style="text-align:center;font-size:.75rem;color:var(--c3);margin-bottom:8px">📦 内置景点数据</div>'
+        : '<div style="text-align:center;font-size:.75rem;color:var(--sub);margin-bottom:8px">🌐 实时数据</div>';
+      if (!result.data.length) {
+        container.innerHTML = srcBadge+'<p style="text-align:center;color:var(--sub);padding:20px">该城市暂无景点数据<br><small>你可以后续手动添加景点</small></p>';
+        return;
+      }
+      container.innerHTML = srcBadge;
+      result.data.forEach((item,i) => {
+        const c = el('div',{className:'attr-card'});
+        c.appendChild(el('div',{className:'attr-img'}, item.type==='公园'?'🌳':item.type==='博物馆'?'🏛️':item.type==='城堡'?'🏰':item.type==='寺庙'?'🛕':item.type==='观景台'?'🏔️':'🏯'));
+        const bd = el('div',{className:'attr-body'});
+        bd.appendChild(el('span',{className:'attr-type'}, item.type));
+        bd.appendChild(el('div',{className:'attr-name'}, item.name));
+        bd.appendChild(el('div',{className:'attr-loc'}, `📍 ${result.source==='builtin'?setupData.dest:geoResult.display_name.split(',')[0]}`));
+        bd.appendChild(el('div',{className:'attr-desc'}, item.desc||'暂无简介'));
+        const tip = item.tip||'✨ 提前查看开放时间，避开高峰时段';
+        bd.appendChild(el('div',{className:'attr-tip'}, `💡 ${tip}`));
+        const acts = el('div',{className:'attr-actions'});
+        const skip = el('button',{className:'btn btn-ghost btn-sm',onclick:()=>{c.style.opacity='0.4'}}, '❌ 不去');
+        const go = el('button',{className:'btn btn-outline btn-sm',onclick:()=>{
+          if (!state.picked.find(p=>p.id===item.id)) {
+            state.picked.push({...item,tip}); saveState(); toast('✅ 已加入收藏！');
+            go.textContent='✅ 已选'; go.className='btn btn-success btn-sm';
+          }
+        }}, state.picked.find(p=>p.id===item.id)?'✅ 已选':'✅ 想去');
+        if (state.picked.find(p=>p.id===item.id)) { go.textContent='✅ 已选'; go.className='btn btn-success btn-sm'; }
+        acts.appendChild(skip); acts.appendChild(go); bd.appendChild(acts);
+        c.appendChild(bd); container.appendChild(c);
+      });
+    } catch(e) {
+      $('#attrs-loading').innerHTML = `<p style="text-align:center;color:var(--c4)">加载失败: ${e.message}</p>`;
+    }
+  })();
+}
+
+// ---- Step 3: Weather Rendering ----
+function renderWeatherStep(body, footer) {
+  body.innerHTML = `
+    <div class="step-indicator"><span class="step-dot done"></span><span class="step-dot done"></span><span class="step-dot current"></span></div>
+    <h2 style="margin-bottom:16px">🌤️ ${setupData.dest} · 出行天气</h2>
+    <div id="weather-loading" class="loading"><div class="spinner"></div><span>正在获取天气…</span></div>
+    <div id="weather-container"></div>
+  `;
+  footer.innerHTML = '<button class="btn btn-primary btn-block" id="finish-setup">✨ 开始规划</button>';
+  document.getElementById('finish-setup').addEventListener('click', finishSetup);
+
+  (async () => {
+    try {
+      if (!geoResult) geoResult = await geocode(setupData.dest);
+      const w = await fetchWeather(geoResult.lat, geoResult.lon, setupData.dateFrom, setupData.dateTo);
+      weatherData = w;
+      $('#weather-loading').style.display = 'none';
+      const container = $('#weather-container');
+      if (!w) { container.innerHTML = '<p style="text-align:center;color:var(--sub)">天气数据暂不可用</p>'; return; }
+      const row = el('div',{className:'weather-row'});
+      w.forEach(d => {
+        const day = el('div',{className:'weather-day'});
+        day.innerHTML = `<div class="w-date">${d.date.slice(5)}</div><div class="w-icon">${d.weather.slice(0,2)}</div><div class="w-temp">${Math.round(d.max)}° / ${Math.round(d.min)}°</div>${d.rain>0?`<div class="w-rain">🌧️ ${d.rain}%</div>`:''}`;
+        row.appendChild(day);
+      });
+      container.appendChild(row);
+      const advice = clothingAdvice(w);
+      const dress = el('div',{className:'dress-card'});
+      dress.innerHTML = `<strong>👕 着装建议</strong><br>` + advice.map(a=>`• ${a}`).join('<br>');
+      container.appendChild(dress);
+    } catch(e) {
+      $('#weather-loading').innerHTML = `<p style="text-align:center;color:var(--c4)">加载失败: ${e.message}</p>`;
+    }
+  })();
 }
 
 function goStep3() {
