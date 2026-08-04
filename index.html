@@ -1077,20 +1077,61 @@ function getMockTransportInfo(from, to, date, transportType) {
     })};
   }
   if (t.includes('自驾')) {
-    // Driving: road distance ~1.35x air distance, speed ~95km/h highway, toll ~0.50 yuan/km
-    const airD = airDist||400;
-    const roadDist = Math.round(airD*1.35);
-    const driveMin = Math.round(roadDist/95*60)+Math.round(roadDist/400)*30; // +30min rest per 400km
-    const h=Math.floor(driveMin/60),m=driveMin%60;
-    const toll = Math.round(roadDist*0.50);
-    // Estimate fuel cost: 8L/100km * 7.8 yuan/L
-    const fuelCost = Math.round(roadDist*0.08*7.8);
-    // Generate a reasonable highway route name
+    /* === 自驾路线计算 - 开始 === */
+    // 第三层：城市不在数据库中 → 兜底
+    if (!coordFrom || !coordTo || !airDist) {
+      return {type:'drive_fallback',from,to};
+    }
+
+    // 第二层：内置算法估算（Haversine 已计算 airDist）
+    const airD = airDist;
+    // 地形修正系数：根据纬度差和距离综合判断
+    const latDiff = Math.abs(coordFrom.lat - coordTo.lat);
+    const isMountain = airD>300 && (latDiff>8 || // 南北跨度大
+      (coordFrom.lat>25&&coordFrom.lat<35&&coordTo.lat>25&&coordTo.lat<35)); // 西南山区
+    const warp = isMountain ? 1.45 : (airD<200 ? 1.25 : 1.32);
+
+    const roadDist = Math.round(airD * warp);
+    // 高速综合时速：短途70km/h，长途80km/h（含服务区休息）
+    const speed = airD<200?70:80;
+    const rawMin = Math.round(roadDist/speed*60);
+    // 每4小时加30分钟休息
+    const restCount = Math.floor(rawMin/240);
+    const driveMin = rawMin + restCount*30;
+    const drvH = Math.floor(driveMin/60), drvM = driveMin%60;
+    // 过路费：0.45元/km（全国高速均价，7座以下客车）
+    const toll = Math.round(roadDist * 0.45);
+    // 油费：8L/100km × 8元/L
+    const fuelCost = Math.round(roadDist * 0.64);
+    const totalCost = toll + fuelCost;
+
+    // 路线：根据方向选合理的高速名称
+    const bearing = Math.atan2(coordTo.lon-coordFrom.lon, coordTo.lat-coordFrom.lat)*180/Math.PI;
+    const routes_NS = ['京港澳','大广','长深','包茂','二广','京台'];
+    const routes_EW = ['连霍','沪昆','杭瑞','沪渝','青银','福银'];
+    const routePool = Math.abs(bearing)<45||Math.abs(bearing)>135?routes_NS:routes_EW;
+    const routeName = routePool[Math.floor(airD*1.3)%routePool.length];
     const routeNum = Math.floor(airD*1.7)%999+1;
-    const routes = ['京港澳','沪昆','连霍','沈海','大广','长深','杭瑞','沪渝','福银','青银','兰海','厦蓉','包茂','泉南','二广'];
-    const routeName = routes[Math.floor(airD/100)%routes.length]||'';
-    return {type:'drive',distance:roadDist,duration:`${h}h${m}m`,toll:toll,fuel:fuelCost,
-      route:`${from} → ${routeName}高速(G${routeNum}) → ${to}`};
+
+    // 格式化函数
+    function fmtNum(n){return n.toLocaleString('zh-CN')}
+    function fmtTime(h,m){return h>0?`${h}小时${m>0?m+'分钟':''}`:`${m}分钟`}
+
+    // 第一层：尝试地图 API（预留接口，失败静默降级）
+    // TODO: 接入高德/腾讯驾车路线API
+    // const apiResult = await tryMapAPI(coordFrom, coordTo);
+    // if (apiResult) return {type:'drive', source:'api', ...apiResult};
+
+    return {
+      type:'drive', source:'estimate',
+      distance:roadDist, distanceStr:fmtNum(roadDist),
+      durationStr:fmtTime(drvH,drvM),
+      tollStr:fmtNum(toll), fuelStr:fmtNum(fuelCost),
+      totalStr:fmtNum(totalCost),
+      route:`${from} → ${routeName}高速(G${routeNum}) → ${to}`,
+      note:'* 基于地理坐标估算，实际费用受路况、车型、油价波动影响'
+    };
+    /* === 自驾路线计算 - 结束 === */
   }
   return {type:'other'};
 }
@@ -1300,18 +1341,39 @@ function buildCard(step, card) {
       });
       infoHtml += '<div class="hint" style="text-align:center;margin-top:4px">📦 模拟数据，仅供参考 · <a href="https://www.ctrip.com/" target="_blank" style="color:var(--c1)">前往携程查询实时票价 →</a></div>';
     } else if (info.type==='drive') {
-      const totalCost = (info.toll||0)+(info.fuel||0);
-      infoHtml = `<div class="card" style="padding:14px">
-        <div style="text-align:center;font-size:1.2rem;font-weight:700;margin-bottom:8px">🚗 ${from} → ${to}</div>
-        <div style="display:flex;justify-content:space-around;text-align:center;flex-wrap:wrap;gap:8px">
-          <div><div style="font-size:1.3rem;font-weight:700;color:var(--c1)">${info.distance}km</div><small style="color:var(--sub)">总里程</small></div>
-          <div><div style="font-size:1.3rem;font-weight:700;color:var(--c1)">${info.duration}</div><small style="color:var(--sub)">预计时间</small></div>
-          <div><div style="font-size:1.3rem;font-weight:700;color:var(--c4)">¥${info.toll}</div><small style="color:var(--sub)">过路费</small></div>
-          <div><div style="font-size:1.3rem;font-weight:700;color:var(--c5)">¥${info.fuel||0}</div><small style="color:var(--sub)">预估油费</small></div>
+      infoHtml = `<div class="card" style="padding:16px">
+        <div style="text-align:center;font-size:1.15rem;font-weight:700;margin-bottom:12px">🚗 ${from} → ${to}</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;text-align:center">
+          <div style="background:rgba(99,102,241,.06);border-radius:10px;padding:10px">
+            <div style="font-size:1.4rem;font-weight:700;color:var(--c1)">${info.distanceStr}</div>
+            <small style="color:var(--sub)">公里 · 总里程</small>
+          </div>
+          <div style="background:rgba(99,102,241,.06);border-radius:10px;padding:10px">
+            <div style="font-size:1.4rem;font-weight:700;color:var(--c1)">${info.durationStr}</div>
+            <small style="color:var(--sub)">预计行驶时间</small>
+          </div>
         </div>
-        <div style="margin-top:8px;text-align:center;font-size:.85rem;color:var(--sub)">💰 预估总费用：<strong style="color:var(--text)">¥${totalCost}</strong>（过路费+油费）</div>
-        <div style="margin-top:4px;font-size:.8rem;color:var(--sub);text-align:center">路线：${info.route}</div>
-        <div class="hint" style="text-align:center;margin-top:8px">📦 基于地理坐标估算 · <a href="https://ditu.amap.com/" target="_blank" style="color:var(--c1)">高德地图规划精确路线 →</a></div>
+        <div style="margin-top:12px;padding:10px;background:rgba(239,68,68,.04);border-radius:10px">
+          <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:.9rem">
+            <span>🛣️ 过路费</span><span style="font-weight:700;color:var(--c4)">¥${info.tollStr}</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:.9rem">
+            <span>⛽ 预估油费</span><span style="font-weight:700;color:var(--c5)">¥${info.fuelStr}</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;padding:6px 0;border-top:1px solid var(--border);margin-top:4px;font-size:.95rem;font-weight:700">
+            <span>💰 预估总费用</span><span>¥${info.totalStr}</span>
+          </div>
+        </div>
+        <div style="margin-top:10px;font-size:.82rem;color:var(--sub);text-align:center">路线：${info.route}</div>
+        <div class="hint" style="text-align:center;margin-top:6px;font-size:.72rem">${info.note||'* 实际费用受路况、车型、油价波动影响'}</div>
+        <div style="text-align:center;margin-top:10px"><a href="https://ditu.amap.com/" target="_blank" style="color:var(--c1);font-size:.85rem;font-weight:600">📱 高德地图规划精确路线 →</a></div>
+      </div>`;
+    } else if (info.type==='drive_fallback') {
+      infoHtml = `<div class="card" style="padding:20px;text-align:center">
+        <div style="font-size:2.5rem;margin-bottom:10px">🚗</div>
+        <p style="color:var(--sub);margin-bottom:8px">暂无法获取「${info.from} → ${info.to}」的自驾路线数据</p>
+        <a href="https://ditu.amap.com/" target="_blank" style="color:var(--c1);font-weight:600;font-size:.9rem">📱 使用高德地图规划路线 →</a>
+        <div class="hint" style="margin-top:8px">建议在地图App中输入起终点获取实时路况</div>
       </div>`;
     } else {
       infoHtml = `<div class="card" style="padding:14px;text-align:center">
