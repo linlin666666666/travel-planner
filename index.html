@@ -1,0 +1,974 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#2A9D8F">
+<title>🗺️ 旅行计划</title>
+<link rel="manifest" id="pwa-manifest">
+<style>
+/* ===== CSS Variables ===== */
+:root {
+  --c1:#2A9D8F; --c2:#264653; --c3:#E9C46A; --c4:#E76F51; --c5:#F8FAFB;
+  --bg:#F8FAFB; --card:#fff; --text:#1a1a2e; --sub:#6b7280; --border:#e5e7eb;
+  --shadow:0 2px 12px rgba(0,0,0,.08); --radius:16px; --radius-sm:10px;
+  --nav-h:64px; --safe-b:env(safe-area-inset-bottom,12px);
+}
+/* ===== Reset ===== */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{font-size:16px;-webkit-tap-highlight-color:transparent}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,"Noto Sans SC",sans-serif;background:var(--bg);color:var(--text);min-height:100vh;min-height:100dvh;overflow-x:hidden;line-height:1.5}
+input,select,button,textarea{font:inherit;color:inherit;border:none;outline:none;background:none}
+button{touch-action:manipulation;cursor:pointer;min-height:44px;min-width:44px}
+input[type="text"],input[type="number"],input[type="date"],input[type="tel"],textarea{width:100%;padding:12px 14px;border:2px solid var(--border);border-radius:var(--radius-sm);background:var(--bg);font-size:16px;transition:border .2s}
+input:focus,textarea:focus,select:focus{border-color:var(--c1)}
+::-webkit-scrollbar{width:0}
+
+/* ===== Typography ===== */
+h1{font-size:1.5rem;font-weight:700}
+h2{font-size:1.2rem;font-weight:600}
+h3{font-size:1rem;font-weight:600}
+.label{font-size:.85rem;font-weight:600;color:var(--sub);display:block;margin-bottom:6px}
+.hint{font-size:.78rem;color:var(--sub);margin-top:4px}
+
+/* ===== Layout ===== */
+.screen{display:none;flex-direction:column;min-height:100vh;min-height:100dvh}
+.screen.active{display:flex}
+.screen-header{background:var(--c1);color:#fff;padding:16px 20px;padding-top:max(16px,env(safe-area-inset-top));text-align:center;position:sticky;top:0;z-index:100}
+.screen-body{flex:1;overflow-y:auto;padding:16px;padding-bottom:calc(var(--nav-h) + var(--safe-b) + 20px)}
+.screen-footer{padding:16px;padding-bottom:calc(16px + var(--safe-b))}
+
+/* ===== Bottom Nav ===== */
+.bottom-nav{position:fixed;bottom:0;left:0;right:0;background:var(--card);border-top:1px solid var(--border);display:flex;justify-content:space-around;padding:6px 0;padding-bottom:var(--safe-b);z-index:100;box-shadow:0 -2px 10px rgba(0,0,0,.05)}
+.nav-item{display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 10px;border-radius:12px;transition:.2s;font-size:.68rem;color:var(--sub);min-width:56px}
+.nav-item.active{color:var(--c1);font-weight:600}
+.nav-item .icon{font-size:1.4rem;line-height:1}
+.nav-badge{position:absolute;top:2px;right:2px;background:var(--c4);color:#fff;font-size:.65rem;min-width:16px;height:16px;border-radius:8px;display:flex;align-items:center;justify-content:center}
+
+/* ===== Cards ===== */
+.card{background:var(--card);border-radius:var(--radius);padding:16px;box-shadow:var(--shadow);margin-bottom:12px}
+.card-row{display:flex;align-items:center;gap:12px}
+
+/* ===== Buttons ===== */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:12px 24px;border-radius:var(--radius-sm);font-weight:600;font-size:.95rem;transition:.2s;text-align:center}
+.btn-primary{background:var(--c1);color:#fff}
+.btn-primary:active{background:#238e81;transform:scale(.97)}
+.btn-outline{border:2px solid var(--c1);color:var(--c1)}
+.btn-outline:active{background:var(--c1);color:#fff}
+.btn-ghost{color:var(--sub)}
+.btn-sm{padding:8px 14px;font-size:.82rem}
+.btn-block{width:100%}
+.btn-danger{background:var(--c4);color:#fff}
+.btn-success{background:#2d6a4f;color:#fff}
+
+/* ===== Tags / Chips ===== */
+.tags{display:flex;flex-wrap:wrap;gap:8px}
+.tag{padding:8px 16px;border-radius:20px;border:2px solid var(--border);font-size:.85rem;transition:.2s;cursor:pointer;user-select:none}
+.tag.selected{background:var(--c1);color:#fff;border-color:var(--c1)}
+.tag:active{transform:scale(.95)}
+
+/* ===== Radio Group ===== */
+.radio-group{display:flex;flex-wrap:wrap;gap:8px}
+.radio-item{padding:10px 16px;border-radius:20px;border:2px solid var(--border);font-size:.85rem;cursor:pointer;transition:.2s;text-align:center;display:flex;align-items:center;gap:4px}
+.radio-item.selected{background:var(--c1);color:#fff;border-color:var(--c1)}
+
+/* ===== Progress Bar ===== */
+.progress-bar{height:8px;background:var(--border);border-radius:4px;overflow:hidden;margin:8px 0}
+.progress-fill{height:100%;background:var(--c1);border-radius:4px;transition:width .4s}
+
+/* ===== Form Group ===== */
+.form-group{margin-bottom:16px}
+
+/* ===== Person Row ===== */
+.person-row{display:flex;gap:8px;align-items:center;margin-bottom:8px}
+.person-row input{flex:1}
+.person-row .gender-btns{display:flex;gap:4px}
+.person-row .gender-btn{padding:10px 12px;border-radius:8px;border:2px solid var(--border);font-size:.85rem;transition:.2s}
+.person-row .gender-btn.sel{background:var(--c1);color:#fff;border-color:var(--c1)}
+
+/* ===== Steps ===== */
+.step-indicator{display:flex;gap:8px;justify-content:center;margin-bottom:20px}
+.step-dot{width:10px;height:10px;border-radius:50%;background:var(--border);transition:.3s}
+.step-dot.done{background:var(--c1)}
+.step-dot.current{background:var(--c1);box-shadow:0 0 0 4px rgba(42,157,143,.3)}
+
+/* ===== Attraction Card ===== */
+.attr-card{border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow);margin-bottom:14px;background:var(--card)}
+.attr-card .attr-img{height:140px;background:linear-gradient(135deg,var(--c1),var(--c2));display:flex;align-items:center;justify-content:center;font-size:3rem;color:#fff}
+.attr-card .attr-body{padding:14px}
+.attr-card .attr-type{display:inline-block;padding:3px 10px;background:rgba(42,157,143,.12);color:var(--c1);border-radius:12px;font-size:.75rem;font-weight:600;margin-bottom:6px}
+.attr-card .attr-name{font-size:1.05rem;font-weight:700;margin-bottom:4px}
+.attr-card .attr-loc{font-size:.8rem;color:var(--sub);margin-bottom:6px}
+.attr-card .attr-desc{font-size:.82rem;color:#555;line-height:1.6;margin-bottom:10px}
+.attr-card .attr-tip{font-size:.78rem;color:var(--c3);background:rgba(233,196,106,.12);padding:6px 10px;border-radius:8px;margin-bottom:10px}
+.attr-card .attr-actions{display:flex;gap:8px}
+.attr-card .attr-actions button{flex:1}
+
+/* ===== Weather Card ===== */
+.weather-row{display:flex;overflow-x:auto;gap:10px;padding:4px 0;scroll-snap-type:x mandatory}
+.weather-day{flex:0 0 auto;min-width:90px;background:var(--card);border-radius:var(--radius-sm);padding:12px;text-align:center;box-shadow:var(--shadow);scroll-snap-align:start}
+.weather-day .w-icon{font-size:2rem;margin-bottom:4px}
+.weather-day .w-date{font-size:.72rem;color:var(--sub);margin-bottom:2px}
+.weather-day .w-temp{font-weight:700;font-size:.95rem}
+.weather-day .w-rain{font-size:.7rem;color:#3b82f6;margin-top:2px}
+.dress-card{background:#e8f5f3;border-radius:var(--radius);padding:14px;margin-top:12px}
+
+/* ===== Itinerary ===== */
+.day-accordion{margin-bottom:10px}
+.day-header{background:var(--c1);color:#fff;padding:12px 16px;border-radius:var(--radius-sm);display:flex;justify-content:space-between;align-items:center;cursor:pointer}
+.day-header .day-num{font-weight:700}
+.day-body{background:var(--card);border-radius:0 0 var(--radius-sm) var(--radius-sm);padding:12px;display:none}
+.day-body.open{display:block}
+.activity-item{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)}
+.activity-item:last-child{border-bottom:none}
+.activity-time{font-weight:700;color:var(--c1);font-size:.85rem;min-width:56px}
+.activity-info{flex:1;font-size:.88rem}
+.activity-del{color:var(--c4);font-size:1.1rem;padding:6px}
+
+/* ===== Checklist ===== */
+.check-cat{margin-bottom:14px}
+.check-cat-header{font-weight:700;font-size:.9rem;color:var(--c2);margin-bottom:6px;display:flex;justify-content:space-between}
+.check-item{display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--card);border-radius:8px;margin-bottom:4px;transition:.2s}
+.check-item.done{opacity:.5}
+.check-item.done .check-label{text-decoration:line-through}
+.check-circle{width:22px;height:22px;border-radius:50%;border:2px solid var(--border);flex-shrink:0;display:flex;align-items:center;justify-content:center;transition:.2s;font-size:12px;color:transparent}
+.check-item.done .check-circle{background:var(--c1);border-color:var(--c1);color:#fff}
+
+/* ===== Budget ===== */
+.budget-summary{display:flex;gap:12px;margin-bottom:16px}
+.budget-box{flex:1;background:var(--card);border-radius:var(--radius);padding:14px;text-align:center;box-shadow:var(--shadow)}
+.budget-box .b-val{font-size:1.4rem;font-weight:700}
+.budget-box .b-label{font-size:.75rem;color:var(--sub);margin-top:2px}
+.expense-item{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:var(--card);border-radius:8px;margin-bottom:6px}
+.expense-cat{font-size:.7rem;padding:2px 8px;border-radius:10px;font-weight:600}
+.expense-cat.food{background:#fef3c7;color:#d97706}
+.expense-cat.transport{background:#dbeafe;color:#2563eb}
+.expense-cat.hotel{background:#ede9fe;color:#7c3aed}
+.expense-cat.tickets{background:#fce7f3;color:#db2777}
+.expense-cat.other{background:#e5e7eb;color:#4b5563}
+
+/* ===== Bookmark Card ===== */
+.bm-card{background:var(--card);border-radius:var(--radius);padding:14px;box-shadow:var(--shadow);margin-bottom:10px;position:relative}
+.bm-card .bm-stars{color:var(--c3);font-size:1.1rem}
+.bm-card .bm-del{position:absolute;top:10px;right:10px;color:var(--c4);font-size:1.1rem}
+
+/* ===== Hotel Links ===== */
+.hotel-links{display:flex;gap:8px;flex-wrap:wrap}
+.hotel-link{flex:1;min-width:120px;padding:14px;border-radius:var(--radius-sm);text-align:center;font-weight:600;text-decoration:none;color:#fff;font-size:.85rem}
+.hotel-link.ctrip{background:linear-gradient(135deg,#0066cc,#0099ff)}
+.hotel-link.meituan{background:linear-gradient(135deg,#ffc700,#ff9d00);color:#333}
+
+/* ===== Toast ===== */
+.toast{position:fixed;top:20px;left:50%;transform:translateX(-50%);background:var(--c2);color:#fff;padding:10px 20px;border-radius:20px;font-size:.85rem;z-index:999;opacity:0;transition:opacity .3s;pointer-events:none}
+.toast.show{opacity:1}
+
+/* ===== Loading ===== */
+.loading{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px;gap:12px;color:var(--sub)}
+.spinner{width:36px;height:36px;border:3px solid var(--border);border-top-color:var(--c1);border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ===== Desktop ===== */
+@media(min-width:768px){
+  body{display:flex;justify-content:center}
+  .screen{max-width:480px;margin:0 auto;border-left:1px solid var(--border);border-right:1px solid var(--border)}
+}
+</style>
+</head>
+<body>
+
+<!-- ===== Setup Screen ===== -->
+<div class="screen active" id="setup-screen">
+  <div class="screen-header"><h1>🗺️ 开始规划旅程</h1></div>
+  <div class="screen-body" id="setup-body"></div>
+  <div class="screen-footer" id="setup-footer"></div>
+</div>
+
+<!-- ===== Main Screen ===== -->
+<div class="screen" id="main-screen">
+  <div class="screen-header" id="main-header"><h1 id="main-title">🗺️ 旅行计划</h1></div>
+  <div class="screen-body" id="main-body"></div>
+  <nav class="bottom-nav" id="bottom-nav">
+    <button class="nav-item active" data-tab="overview"><span class="icon">🏠</span>概览</button>
+    <button class="nav-item" data-tab="itinerary"><span class="icon">📅</span>行程</button>
+    <button class="nav-item" data-tab="checklist"><span class="icon">✅</span>清单</button>
+    <button class="nav-item" data-tab="budget"><span class="icon">💰</span>预算</button>
+    <button class="nav-item" data-tab="bookmarks"><span class="icon">⭐</span>收藏</button>
+  </nav>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ============================================================
+// APP STATE
+// ============================================================
+const LS_KEY = 'travel_planner_data';
+const state = {
+  trip: null,           // setup form data
+  attractions_seen: [], // OSM attractions fetched
+  picked: [],           // picked attraction IDs
+  itinerary: [],        // {day, items:[{time,name,note}]}
+  checklist: [],        // {id,cat,label,done}
+  expenses: [],         // {id,amount,cat,note,date}
+  bookmarks: [],        // {id,name,addr,rating,note}
+};
+
+function saveState() {
+  try {
+    const toSave = {
+      trip: state.trip,
+      picked: state.picked,
+      itinerary: state.itinerary,
+      checklist: state.checklist,
+      expenses: state.expenses,
+      bookmarks: state.bookmarks,
+    };
+    localStorage.setItem(LS_KEY, JSON.stringify(toSave));
+  } catch(e) {}
+}
+
+function loadState() {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (!raw) return false;
+    const data = JSON.parse(raw);
+    if (data.trip) state.trip = data.trip;
+    if (data.picked) state.picked = data.picked;
+    if (data.itinerary) state.itinerary = data.itinerary;
+    if (data.checklist) state.checklist = data.checklist;
+    if (data.expenses) state.expenses = data.expenses;
+    if (data.bookmarks) state.bookmarks = data.bookmarks;
+    return !!data.trip;
+  } catch(e) { return false; }
+}
+
+// ============================================================
+// HELPERS
+// ============================================================
+const $ = (s, p) => (p||document).querySelector(s);
+const $$ = (s, p) => Array.from((p||document).querySelectorAll(s));
+const el = (tag, attrs, ...children) => {
+  const e = document.createElement(tag);
+  if (attrs) Object.entries(attrs).forEach(([k,v]) => {
+    if (k === 'className') e.className = v;
+    else if (k.startsWith('on')) e[k] = v;
+    else e.setAttribute(k,v);
+  });
+  children.forEach(c => { if (typeof c === 'string') e.appendChild(document.createTextNode(c)); else if (c) e.appendChild(c); });
+  return e;
+};
+
+function toast(msg) {
+  const t = $('#toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 1800);
+}
+
+function showScreen(id) {
+  $$('.screen').forEach(s => s.classList.remove('active'));
+  $(`#${id}-screen`).classList.add('active');
+}
+
+function switchTab(tab) {
+  currentTab = tab;
+  $$('.nav-item',$('#bottom-nav')).forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+  renderTab(tab);
+}
+
+// ============================================================
+// API HELPERS
+// ============================================================
+async function geocode(city) {
+  const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(city)}&limit=1&accept-language=zh`;
+  const r = await fetch(url, {headers:{'User-Agent':'TravelPlanner/1.0'}});
+  const d = await r.json();
+  if (!d.length) throw new Error('未找到该城市');
+  return {lat:parseFloat(d[0].lat),lon:parseFloat(d[0].lon),display_name:d[0].display_name};
+}
+
+async function fetchAttractions(lat, lon) {
+  const b = 0.05;
+  const south = lat - b, west = lon - b, north = lat + b, east = lon + b;
+  const query = `[out:json];(nwr["tourism"~"attraction|museum|viewpoint|gallery|artwork"](${south},${west},${north},${east});nwr["historic"~"monument|memorial|castle|ruins|archaeological_site"](${south},${west},${north},${east});way["leisure"="park"](${south},${west},${north},${east}););out center 20;`;
+  const url = 'https://overpass-api.de/api/interpreter';
+  const r = await fetch(url, {method:'POST',body:query});
+  const d = await r.json();
+  const items = [];
+  const seen = new Set();
+  (d.elements||[]).forEach(e => {
+    const t = e.tags||{};
+    const name = t['name:zh'] || t.name || t['alt_name'] || '';
+    if (!name || seen.has(name)) return;
+    seen.add(name);
+    const typ = t.tourism || t.historic || '景点';
+    const typMap = {attraction:'景点',museum:'博物馆',viewpoint:'观景台',gallery:'美术馆',artwork:'艺术',monument:'纪念碑',memorial:'纪念馆',castle:'城堡',ruins:'古迹',archaeological_site:'遗址',park:'公园'};
+    items.push({id:`osm_${e.id}`,name,type:typMap[typ]||typ,lat:e.lat||e.center?.lat,lon:e.lon||e.center?.lon});
+  });
+  return items.slice(0,10);
+}
+
+async function fetchWikiSummary(title, lang='zh') {
+  try {
+    const url = `https://${lang}.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`;
+    const r = await fetch(url);
+    if (!r.ok) return null;
+    const d = await r.json();
+    return d.extract ? d.extract.slice(0,200)+(d.extract.length>200?'…':'') : null;
+  } catch { return null; }
+}
+
+async function fetchWeather(lat, lon, startDate, endDate) {
+  const s = startDate, e = endDate;
+  const days = Math.min(Math.ceil((new Date(e)-new Date(s))/86400000)+1, 16);
+  const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=temperature_2m_max,temperature_2m_min,weathercode,precipitation_probability_max,windspeed_10m_max&timezone=auto&forecast_days=${Math.min(days,16)}`;
+  const r = await fetch(url);
+  const d = await r.json();
+  if (!d.daily) return null;
+  const wcodes = {0:'☀️ 晴',1:'🌤️ 晴',2:'⛅ 多云',3:'☁️ 阴',45:'🌫️ 雾',48:'🌫️ 雾',51:'🌦️ 小雨',53:'🌦️ 小雨',55:'🌦️ 小雨',61:'🌧️ 雨',63:'🌧️ 雨',65:'🌧️ 大雨',71:'🌨️ 雪',73:'🌨️ 雪',75:'🌨️ 大雪',80:'🌦️ 阵雨',81:'🌧️ 阵雨',82:'🌧️ 暴雨',95:'⛈️ 雷暴',96:'⛈️ 雷暴+冰雹',99:'⛈️ 强雷暴'};
+  return d.daily.time.map((t,i)=>({
+    date:t,
+    max:d.daily.temperature_2m_max[i],
+    min:d.daily.temperature_2m_min[i],
+    weather:wcodes[d.daily.weathercode[i]]||'🌡️ 未知',
+    rain:d.daily.precipitation_probability_max[i],
+    wind:d.daily.windspeed_10m_max[i],
+  }));
+}
+
+function clothingAdvice(weatherDays) {
+  const avgMax = weatherDays.reduce((s,d)=>s+d.max,0)/weatherDays.length;
+  const avgMin = weatherDays.reduce((s,d)=>s+d.min,0)/weatherDays.length;
+  const hasRain = weatherDays.some(d=>d.rain>50);
+  const hasSnow = weatherDays.some(d=>d.weather.includes('雪'));
+  const parts = [];
+  if (avgMax > 30) parts.push('轻薄夏装（短袖短裤/连衣裙）','务必携带防晒霜🧴、太阳镜🕶️、遮阳帽👒');
+  else if (avgMax > 20) parts.push('短袖+薄长裤，早晚备一件薄外套🧥');
+  else if (avgMin > 10) parts.push('长袖衬衫+外套，中午暖和可脱掉外层');
+  else if (avgMin > 0) parts.push('厚外套🧥+毛衣，注意早晚保暖');
+  else parts.push('羽绒服🧣+保暖内衣+手套帽子，严防寒冷');
+  if (hasRain) parts.push('有降雨🌧️，务必带伞☂️或雨衣');
+  if (hasSnow) parts.push('有降雪❄️，穿防滑鞋👢');
+  parts.push('穿舒适的步行鞋👟，旅行每天走路多');
+  return parts;
+}
+
+// ============================================================
+// SETUP WIZARD
+// ============================================================
+let setupStep = 1;
+let setupData = {};
+let geoResult = null;
+let attractionsData = [];
+let weatherData = null;
+let tripDays = 0;
+
+function renderSetupStep() {
+  const body = $('#setup-body');
+  const footer = $('#setup-footer');
+  body.innerHTML = '';
+  footer.innerHTML = '';
+
+  if (setupStep === 1) {
+    // ---- STEP 1: Form ----
+    body.innerHTML = `
+      <div class="step-indicator"><span class="step-dot current"></span><span class="step-dot"></span><span class="step-dot"></span></div>
+      <h2 style="margin-bottom:16px">📋 填写旅行信息</h2>
+    `;
+    const fields = [
+      {id:'dest',label:'🌍 目的地',type:'text',ph:'如：东京'},
+      {id:'dateFrom',label:'📅 出发日期',type:'date'},
+      {id:'dateTo',label:'📅 返回日期',type:'date'},
+      {id:'transport',label:'🚗 出行方式',type:'radio',opts:['✈️ 飞机','🚄 高铁','🚗 自驾','🚌 大巴','🚲 骑行']},
+      {id:'people',label:'👥 同行人数（含自己）',type:'number',ph:'如：3',min:1,max:20},
+      {id:'accomZone',label:'🏙️ 住宿地段',type:'radio',opts:['🏢 市中心','🌳 郊区']},
+      {id:'accomType',label:'🏨 住宿类型',type:'radio',opts:['🏨 酒店','🏡 民宿']},
+      {id:'budget',label:'💰 人均预算（元）',type:'number',ph:'如：5000',min:0},
+      {id:'tags',label:'🎯 旅行偏好（多选）',type:'tags',opts:['🍜 美食','🏛️ 文化','🌿 自然','🛍️ 购物','📸 拍照','🎢 娱乐']},
+      {id:'diet',label:'🍽️ 饮食禁忌',type:'text',ph:'如：不吃辣、清真'},
+      {id:'emergency',label:'📞 紧急联系人（可选）',type:'text',ph:'姓名 电话'},
+    ];
+    fields.forEach(f => {
+      const g = el('div',{className:'form-group'});
+      g.appendChild(el('label',{className:'label'},f.label));
+      if (f.type === 'text' || f.type === 'number' || f.type === 'date') {
+        const inp = el('input',{type:f.type,id:'f_'+f.id,placeholder:f.ph||''});
+        if (f.min) inp.min = f.min;
+        if (f.max) inp.max = f.max;
+        if (f.id === 'people') inp.value = setupData.people||'2';
+        if (f.id === 'dateFrom') { inp.value = setupData.dateFrom||''; inp.addEventListener('change',()=>{ document.getElementById('f_dateTo').min = inp.value; }); }
+        if (f.id === 'dateTo') { inp.value = setupData.dateTo||''; if(setupData.dateFrom) inp.min = setupData.dateFrom; }
+        if (setupData[f.id]) inp.value = setupData[f.id];
+        g.appendChild(inp);
+      } else if (f.type === 'radio') {
+        const rg = el('div',{className:'radio-group',id:'rg_'+f.id});
+        f.opts.forEach(o => {
+          const ri = el('div',{className:'radio-item',onclick:function(){
+            $$('.radio-item',rg).forEach(r=>r.classList.remove('selected'));
+            ri.classList.add('selected');
+            setupData[f.id] = o;
+          }}, o);
+          if (setupData[f.id] === o) ri.classList.add('selected');
+          rg.appendChild(ri);
+        });
+        g.appendChild(rg);
+      } else if (f.type === 'tags') {
+        const tg = el('div',{className:'tags',id:'tg_'+f.id});
+        f.opts.forEach(o => {
+          const t = el('div',{className:'tag',onclick:function(){
+            t.classList.toggle('selected');
+            setupData[f.id] = $$('.selected',tg).map(x=>x.textContent.trim());
+          }}, o);
+          if (setupData[f.id] && setupData[f.id].includes(o)) t.classList.add('selected');
+          tg.appendChild(t);
+        });
+        g.appendChild(tg);
+      }
+      body.appendChild(g);
+    });
+
+    // Dynamic person rows
+    const ppl = parseInt(setupData.people||'2')||2;
+    body.appendChild(el('label',{className:'label'},'👤 每人信息'));
+    const pc = el('div',{id:'person-container'});
+    for (let i=0;i<ppl;i++) {
+      const row = el('div',{className:'person-row'});
+      const ninp = el('input',{type:'text',placeholder:'姓名',id:`pname_${i}`});
+      if ((setupData.persons||[])[i]) ninp.value = setupData.persons[i].name||'';
+      const gdiv = el('div',{className:'gender-btns'});
+      ['男','女'].forEach(g=>{
+        const gb = el('div',{className:'gender-btn',onclick:function(){
+          $$('.gender-btn',gdiv).forEach(b=>b.classList.remove('sel'));
+          gb.classList.add('sel');
+        }}, g==='男'?'👨':'👩');
+        if ((setupData.persons||[])[i] && setupData.persons[i].gender === g) gb.classList.add('sel');
+        gdiv.appendChild(gb);
+      });
+      row.appendChild(ninp);
+      row.appendChild(gdiv);
+      pc.appendChild(row);
+    }
+    body.appendChild(pc);
+
+    // Listen for people count change
+    document.getElementById('f_people').addEventListener('change',function(){
+      setupData.people = this.value;
+      renderSetupStep();
+    });
+
+    footer.innerHTML = '<button class="btn btn-primary btn-block" id="step1-next">下一步 → 景点推荐</button>';
+    document.getElementById('step1-next').addEventListener('click', goStep2);
+
+  } else if (setupStep === 2) {
+    // ---- STEP 2: Attractions ----
+    body.innerHTML = `
+      <div class="step-indicator"><span class="step-dot done"></span><span class="step-dot current"></span><span class="step-dot"></span></div>
+      <h2 style="margin-bottom:16px">🏯 ${setupData.dest} 热门景点</h2>
+      <div id="attrs-loading" class="loading"><div class="spinner"></div><span>正在搜索景点…</span></div>
+      <div id="attrs-container"></div>
+    `;
+    footer.innerHTML = '<button class="btn btn-primary btn-block" id="step2-next">下一步 → 天气 & 着装</button>';
+    document.getElementById('step2-next').addEventListener('click', goStep3);
+
+    // Fetch attractions
+    (async () => {
+      try {
+        if (!geoResult) geoResult = await geocode(setupData.dest);
+        const items = await fetchAttractions(geoResult.lat, geoResult.lon);
+        attractionsData = items;
+        const container = $('#attrs-container');
+        $('#attrs-loading').style.display = 'none';
+        if (!items.length) {
+          container.innerHTML = '<p style="text-align:center;color:var(--sub);padding:20px">该城市暂无景点数据</p>';
+          return;
+        }
+        items.forEach((item,i) => {
+          const card = el('div',{className:'attr-card'});
+          const img = el('div',{className:'attr-img'}, item.type === '公园'?'🌳':item.type==='博物馆'?'🏛️':item.type==='城堡'?'🏰':item.type==='寺庙'?'🛕':item.type==='观景台'?'🏔️':'🏯');
+          const body = el('div',{className:'attr-body'});
+          body.appendChild(el('span',{className:'attr-type'}, item.type));
+          body.appendChild(el('div',{className:'attr-name'}, item.name));
+          body.appendChild(el('div',{className:'attr-loc'}, `📍 ${geoResult.display_name.split(',')[0]}`));
+          const descDiv = el('div',{className:'attr-desc',id:`desc_${i}`}, '加载简介中…');
+          body.appendChild(descDiv);
+          // Tips based on type
+          const tips = {
+            '寺庙':'🙏 进入寺庙请保持安静，注意着装得体',
+            '博物馆':'📸 部分展区可能禁止拍照，提前确认',
+            '公园':'🌿 户外景点，注意防晒和防蚊',
+            '城堡':'👟 建议穿舒适的鞋，可能需要走很多路',
+            '观景台':'📷 日落时分景色最佳，提前占位',
+            '古迹':'🌞 户外遗址，避开正午烈日',
+            '遗址':'🌞 户外遗址，避开正午烈日',
+            '纪念碑':'📸 地标打卡，人多时需排队',
+          };
+          const tip = tips[item.type]||'✨ 提前查看开放时间，避开高峰时段';
+          body.appendChild(el('div',{className:'attr-tip'}, `💡 ${tip}`));
+
+          const actions = el('div',{className:'attr-actions'});
+          const skipBtn = el('button',{className:'btn btn-ghost btn-sm'}, '❌ 不去');
+          const goBtn = el('button',{className:'btn btn-outline btn-sm',onclick:()=>{
+            if (!state.picked.find(p=>p.id===item.id)) {
+              state.picked.push({...item,tip});
+              saveState();
+              toast('✅ 已加入收藏！');
+              goBtn.textContent = '✅ 已选';
+              goBtn.className = 'btn btn-success btn-sm';
+            }
+          }}, '✅ 想去');
+          if (state.picked.find(p=>p.id===item.id)) {
+            goBtn.textContent = '✅ 已选';
+            goBtn.className = 'btn btn-success btn-sm';
+          }
+          skipBtn.addEventListener('click',()=>{ card.style.opacity='0.4'; });
+          actions.appendChild(skipBtn);
+          actions.appendChild(goBtn);
+          body.appendChild(actions);
+          card.appendChild(img);
+          card.appendChild(body);
+          container.appendChild(card);
+
+          // Async fetch wiki summary
+          fetchWikiSummary(item.name).then(summary => {
+            if (summary) descDiv.textContent = summary;
+            else descDiv.textContent = '暂无简介';
+          });
+        });
+      } catch(e) {
+        $('#attrs-loading').innerHTML = `<p style="text-align:center;color:var(--c4)">加载失败: ${e.message}</p>`;
+      }
+    })();
+
+  } else if (setupStep === 3) {
+    // ---- STEP 3: Weather ----
+    body.innerHTML = `
+      <div class="step-indicator"><span class="step-dot done"></span><span class="step-dot done"></span><span class="step-dot current"></span></div>
+      <h2 style="margin-bottom:16px">🌤️ ${setupData.dest} · 出行天气</h2>
+      <div id="weather-loading" class="loading"><div class="spinner"></div><span>正在获取天气…</span></div>
+      <div id="weather-container"></div>
+    `;
+    footer.innerHTML = '<button class="btn btn-primary btn-block" id="finish-setup">✨ 开始规划</button>';
+    document.getElementById('finish-setup').addEventListener('click', finishSetup);
+
+    (async () => {
+      try {
+        if (!geoResult) geoResult = await geocode(setupData.dest);
+        const w = await fetchWeather(geoResult.lat, geoResult.lon, setupData.dateFrom, setupData.dateTo);
+        weatherData = w;
+        $('#weather-loading').style.display = 'none';
+        const container = $('#weather-container');
+        if (!w) { container.innerHTML = '<p style="text-align:center;color:var(--sub)">天气数据暂不可用</p>'; return; }
+
+        // Weather row
+        const row = el('div',{className:'weather-row'});
+        w.forEach(d => {
+          const day = el('div',{className:'weather-day'});
+          day.innerHTML = `
+            <div class="w-date">${d.date.slice(5)}</div>
+            <div class="w-icon">${d.weather.slice(0,2)}</div>
+            <div class="w-temp">${Math.round(d.max)}° / ${Math.round(d.min)}°</div>
+            ${d.rain>0?`<div class="w-rain">🌧️ ${d.rain}%</div>`:''}
+          `;
+          row.appendChild(day);
+        });
+        container.appendChild(row);
+
+        // Clothing advice
+        const advice = clothingAdvice(w);
+        const dress = el('div',{className:'dress-card'});
+        dress.innerHTML = `<strong>👕 着装建议</strong><br>` + advice.map(a=>`• ${a}`).join('<br>');
+        container.appendChild(dress);
+
+      } catch(e) {
+        $('#weather-loading').innerHTML = `<p style="text-align:center;color:var(--c4)">加载失败: ${e.message}</p>`;
+      }
+    })();
+  }
+}
+
+function goStep2() {
+  // Collect form data
+  setupData.dest = document.getElementById('f_dest')?.value?.trim();
+  setupData.dateFrom = document.getElementById('f_dateFrom')?.value;
+  setupData.dateTo = document.getElementById('f_dateTo')?.value;
+  setupData.people = document.getElementById('f_people')?.value;
+  setupData.budget = document.getElementById('f_budget')?.value;
+  setupData.diet = document.getElementById('f_diet')?.value?.trim();
+  setupData.emergency = document.getElementById('f_emergency')?.value?.trim();
+
+  if (!setupData.dest) return toast('请输入目的地');
+  if (!setupData.dateFrom || !setupData.dateTo) return toast('请选择出行日期');
+  if (new Date(setupData.dateTo) < new Date(setupData.dateFrom)) return toast('返回日期不能早于出发日期');
+  const ppl = parseInt(setupData.people)||2;
+  const persons = [];
+  for (let i=0;i<ppl;i++) {
+    const nm = document.getElementById(`pname_${i}`)?.value?.trim()||`旅伴${i+1}`;
+    const gBtns = document.getElementById(`pname_${i}`)?.parentElement?.querySelectorAll('.gender-btn.sel');
+    const g = gBtns && gBtns.length>0 ? (gBtns[0].textContent.includes('男')?'男':'女') : '未选';
+    persons.push({name:nm,gender:g});
+  }
+  setupData.persons = persons;
+
+  setupStep = 2;
+  $('#setup-body').scrollTop = 0;
+  renderSetupStep();
+}
+
+function goStep3() {
+  setupStep = 3;
+  $('#setup-body').scrollTop = 0;
+  renderSetupStep();
+}
+
+function finishSetup() {
+  state.trip = {...setupData};
+  state.bookmarks = [...state.picked]; // picked attractions → bookmarks
+  // Initialize checklist defaults
+  if (!state.checklist.length) {
+    const defaults = [
+      {cat:'📋 证件',items:['身份证/护照','驾驶证','机票/车票','酒店预订确认','保险单','银行卡']},
+      {cat:'👔 衣物',items:['外套','T恤','长裤','短裤','内衣','袜子','睡衣','运动鞋']},
+      {cat:'📱 电子设备',items:['手机+充电器','充电宝','相机','耳机','转换插头']},
+      {cat:'🪥 洗漱用品',items:['牙刷牙膏','毛巾','洗发水沐浴露','护肤品','防晒霜','梳子']},
+      {cat:'💊 药品',items:['创可贴','感冒药','肠胃药','晕车药','消毒湿巾','口罩']},
+      {cat:'📦 其他',items:['雨伞','水杯','零食','垃圾袋','背包/行李箱','眼罩耳塞']},
+    ];
+    defaults.forEach(cat => {
+      cat.items.forEach(item => {
+        state.checklist.push({id:'cl_'+Date.now()+Math.random(),cat:cat.cat,label:item,done:false});
+      });
+    });
+  }
+  // Initialize itinerary days
+  const days = tripDays = Math.max(1, Math.ceil((new Date(setupData.dateTo)-new Date(setupData.dateFrom))/86400000)+1);
+  if (!state.itinerary.length) {
+    for (let i=0;i<days;i++) {
+      const d = new Date(setupData.dateFrom);
+      d.setDate(d.getDate()+i);
+      state.itinerary.push({day:i+1,date:d.toISOString().slice(0,10),items:[]});
+    }
+  }
+  saveState();
+  showScreen('main');
+  $('#main-title').textContent = `🗺️ ${setupData.dest || '旅行计划'}`;
+  currentTab = 'overview';
+  switchTab('overview');
+}
+
+// ============================================================
+// MAIN APP TABS
+// ============================================================
+let currentTab = 'overview';
+
+function renderTab(tab) {
+  const body = $('#main-body');
+  body.innerHTML = '';
+  switch(tab) {
+    case 'overview': renderOverview(body); break;
+    case 'itinerary': renderItinerary(body); break;
+    case 'checklist': renderChecklist(body); break;
+    case 'budget': renderBudget(body); break;
+    case 'bookmarks': renderBookmarks(body); break;
+  }
+}
+
+// --- Overview Tab ---
+function renderOverview(body) {
+  const t = state.trip;
+  if (!t) { body.innerHTML = '<p style="text-align:center;padding:20px;color:var(--sub)">请先设置旅行信息</p>'; return; }
+  const daysLeft = Math.ceil((new Date(t.dateFrom)-new Date())/(86400000));
+  body.innerHTML = `
+    <div class="card" style="text-align:center">
+      <div style="font-size:3rem">🌍</div>
+      <h2>${t.dest}</h2>
+      <p style="color:var(--sub)">${t.dateFrom} → ${t.dateTo}</p>
+      <div style="font-size:2rem;font-weight:700;color:${daysLeft<=3?'var(--c4)':daysLeft<=7?'var(--c3)':'var(--c1)'};margin:12px 0">${daysLeft>0?`倒计时 ${daysLeft} 天`:'已出发！'}</div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;font-size:.82rem;color:var(--sub)">
+        <span>${t.transport||''}</span><span>${t.accomZone||''}</span><span>${t.accomType||''}</span><span>${t.people||''}人</span><span>人均¥${t.budget||'--'}</span>
+      </div>
+    </div>
+    <div class="card">
+      <h3>👥 同行伙伴</h3>
+      ${(t.persons||[]).map(p=>`<div style="padding:6px 0;border-bottom:1px solid var(--border)">${p.gender==='男'?'👨':'👩'} ${p.name} · ${p.gender}</div>`).join('')}
+    </div>
+    <div class="card">
+      <h3>🏨 查找酒店</h3>
+      <p style="font-size:.85rem;color:var(--sub);margin-bottom:10px">点击跳转搜索「${t.dest}」的酒店</p>
+      <div class="hotel-links">
+        <a class="hotel-link ctrip" href="https://m.ctrip.com/webapp/hotel/hotelsearch?city=${encodeURIComponent(t.dest)}" target="_blank" rel="noopener">🏨 携程酒店</a>
+        <a class="hotel-link meituan" href="https://i.meituan.com/hotel/${encodeURIComponent(t.dest)}" target="_blank" rel="noopener">🏨 美团酒店</a>
+      </div>
+    </div>
+    ${t.diet?`<div class="card"><h3>🍽️ 饮食禁忌</h3><p>${t.diet}</p></div>`:''}
+    ${t.emergency?`<div class="card"><h3>📞 紧急联系人</h3><p>${t.emergency}</p></div>`:''}
+    <button class="btn btn-outline btn-block" onclick="resetTrip()">🔄 重新设置旅行</button>
+  `;
+}
+
+function resetTrip() {
+  if (confirm('确定要重新设置吗？当前数据将被清除。')) {
+    localStorage.removeItem(LS_KEY);
+    location.reload();
+  }
+}
+
+// --- Itinerary Tab ---
+function renderItinerary(body) {
+  const days = state.itinerary;
+  if (!days.length) {
+    body.innerHTML = '<p style="text-align:center;padding:20px;color:var(--sub)">请先设置旅行信息</p>';
+    return;
+  }
+  body.innerHTML = '<h2 style="margin-bottom:12px">📅 每日行程</h2>';
+  days.forEach((day,i) => {
+    const acc = el('div',{className:'day-accordion'});
+    const header = el('div',{className:'day-header',onclick:()=>{
+      const bd = acc.querySelector('.day-body');
+      bd.classList.toggle('open');
+    }});
+    const dow = ['日','一','二','三','四','五','六'][new Date(day.date).getDay()];
+    header.innerHTML = `<span class="day-num">第${day.day}天</span><span style="font-size:.82rem">${day.date} 周${dow}</span><span>${day.items.length}项</span>`;
+    acc.appendChild(header);
+
+    const dayBody = el('div',{className:'day-body'+(i===0?' open':'')});
+    day.items.forEach(item => {
+      const ai = el('div',{className:'activity-item'});
+      ai.innerHTML = `
+        <span class="activity-time">${item.time}</span>
+        <span class="activity-info">${item.name}${item.note?`<br><small style="color:var(--sub)">${item.note}</small>`:''}</span>
+        <button class="activity-del" data-id="${item.id}">✕</button>
+      `;
+      ai.querySelector('.activity-del').addEventListener('click',()=>{
+        day.items = day.items.filter(x=>x.id!==item.id);
+        saveState();
+        renderItinerary(body);
+      });
+      dayBody.appendChild(ai);
+    });
+
+    // Add activity form
+    const addForm = el('div',{style:'display:flex;gap:6px;margin-top:8px;align-items:center'});
+    const timeInp = el('input',{type:'time',style:'width:80px;flex-shrink:0',id:`time_${i}`});
+    const nameInp = el('input',{type:'text',placeholder:'活动名称',style:'flex:2',id:`act_${i}`});
+    const noteInp = el('input',{type:'text',placeholder:'备注',style:'flex:1',id:`note_${i}`});
+    const addBtn = el('button',{className:'btn btn-primary btn-sm',style:'flex-shrink:0',onclick:()=>{
+      const time = document.getElementById(`time_${i}`).value;
+      const name = document.getElementById(`act_${i}`).value.trim();
+      const note = document.getElementById(`note_${i}`).value.trim();
+      if (!time||!name) return toast('请填写时间和活动名称');
+      day.items.push({id:'act_'+Date.now(),time,name,note});
+      day.items.sort((a,b)=>a.time.localeCompare(b.time));
+      saveState();
+      renderItinerary(body);
+    }}, '+');
+    addForm.appendChild(timeInp);
+    addForm.appendChild(nameInp);
+    addForm.appendChild(noteInp);
+    addForm.appendChild(addBtn);
+    dayBody.appendChild(addForm);
+
+    acc.appendChild(dayBody);
+    body.appendChild(acc);
+  });
+}
+
+// --- Checklist Tab ---
+function renderChecklist(body) {
+  const items = state.checklist;
+  const done = items.filter(i=>i.done).length;
+  const pct = items.length ? Math.round(done/items.length*100) : 0;
+
+  body.innerHTML = `
+    <h2 style="margin-bottom:8px">✅ 打包清单</h2>
+    <div style="font-size:.85rem;color:var(--sub);margin-bottom:8px">已完成 ${done}/${items.length} (${pct}%)</div>
+    <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
+  `;
+
+  const cats = [...new Set(items.map(i=>i.cat))];
+  cats.forEach(cat => {
+    const cdiv = el('div',{className:'check-cat'});
+    cdiv.innerHTML = `<div class="check-cat-header"><span>${cat}</span><span style="font-size:.75rem;color:var(--sub)">${items.filter(i=>i.cat===cat&&i.done).length}/${items.filter(i=>i.cat===cat).length}</span></div>`;
+    items.filter(i=>i.cat===cat).forEach(item => {
+      const ci = el('div',{className:'check-item'+(item.done?' done':'')});
+      ci.innerHTML = `<div class="check-circle">✓</div><span class="check-label" style="flex:1">${item.label}</span><button class="btn btn-ghost btn-sm" style="color:var(--c4)">🗑</button>`;
+      ci.querySelector('.check-circle').addEventListener('click',()=>{
+        item.done = !item.done;
+        saveState();
+        renderChecklist(body);
+      });
+      ci.querySelector('button').addEventListener('click',()=>{
+        state.checklist = state.checklist.filter(x=>x.id!==item.id);
+        saveState();
+        renderChecklist(body);
+      });
+      cdiv.appendChild(ci);
+    });
+    body.appendChild(cdiv);
+  });
+
+  // Add custom item
+  const af = el('div',{style:'display:flex;gap:6px;margin-top:12px'});
+  const sel = el('select',{style:'padding:10px;border:2px solid var(--border);border-radius:8px;font-size:.85rem'});
+  cats.forEach(c=>{ sel.appendChild(el('option',{value:c},c)); });
+  const inp = el('input',{type:'text',placeholder:'添加物品…',style:'flex:1'});
+  const btn = el('button',{className:'btn btn-primary btn-sm',onclick:()=>{
+    if(!inp.value.trim()) return;
+    state.checklist.push({id:'cl_'+Date.now(),cat:sel.value,label:inp.value.trim(),done:false});
+    saveState();
+    renderChecklist(body);
+  }}, '+');
+  af.appendChild(sel);
+  af.appendChild(inp);
+  af.appendChild(btn);
+  body.appendChild(af);
+}
+
+// --- Budget Tab ---
+function renderBudget(body) {
+  const total = parseFloat(state.trip?.budget||'0') * parseInt(state.trip?.people||'1');
+  const spent = state.expenses.reduce((s,e)=>s+parseFloat(e.amount||0),0);
+  const remain = total - spent;
+
+  body.innerHTML = `
+    <h2 style="margin-bottom:12px">💰 预算追踪</h2>
+    <div class="budget-summary">
+      <div class="budget-box"><div class="b-val" style="color:var(--c1)">¥${total.toLocaleString()}</div><div class="b-label">总预算</div></div>
+      <div class="budget-box"><div class="b-val" style="color:var(--c4)">¥${spent.toLocaleString()}</div><div class="b-label">已花费</div></div>
+      <div class="budget-box"><div class="b-val" style="color:${remain>=0?'var(--c1)':'var(--c4)'}">¥${remain.toLocaleString()}</div><div class="b-label">剩余</div></div>
+    </div>
+    <div class="progress-bar"><div class="progress-fill" style="width:${total?Math.min(100,spent/total*100):0}%;background:${remain>=0?'var(--c1)':'var(--c4)'}"></div></div>
+    <h3 style="margin:16px 0 8px">📋 支出明细</h3>
+    <div id="expense-list"></div>
+  `;
+
+  const elist = $('#expense-list');
+  state.expenses.forEach(e => {
+    const row = el('div',{className:'expense-item'});
+    const catClass = e.cat==='餐饮'?'food':e.cat==='交通'?'transport':e.cat==='住宿'?'hotel':e.cat==='门票'?'tickets':'other';
+    row.innerHTML = `<div><strong>¥${parseFloat(e.amount||0).toFixed(0)}</strong> <span class="expense-cat ${catClass}">${e.cat}</span><br><small style="color:var(--sub)">${e.note||''} · ${e.date||''}</small></div><button class="btn btn-ghost btn-sm" style="color:var(--c4)" data-id="${e.id}">✕</button>`;
+    row.querySelector('button').addEventListener('click',()=>{
+      state.expenses = state.expenses.filter(x=>x.id!==e.id);
+      saveState();
+      renderBudget(body);
+    });
+    elist.appendChild(row);
+  });
+
+  // Add expense form
+  const af = el('div',{style:'background:var(--card);border-radius:var(--radius);padding:12px;margin-top:12px;box-shadow:var(--shadow)'});
+  af.innerHTML = '<h3 style="margin-bottom:8px">+ 记一笔</h3>';
+  const cats = ['餐饮','交通','住宿','门票','购物','其他'];
+  const sel = el('select',{style:'padding:10px;border:2px solid var(--border);border-radius:8px;font-size:.85rem;margin-bottom:8px;width:100%'});
+  cats.forEach(c=>sel.appendChild(el('option',{value:c},c)));
+  af.appendChild(sel);
+  const amt = el('input',{type:'number',placeholder:'金额 ¥',style:'margin-bottom:8px'});
+  af.appendChild(amt);
+  const note = el('input',{type:'text',placeholder:'备注',style:'margin-bottom:8px'});
+  af.appendChild(note);
+  const dt = el('input',{type:'date',value:new Date().toISOString().slice(0,10),style:'margin-bottom:8px'});
+  af.appendChild(dt);
+  const addBtn = el('button',{className:'btn btn-primary btn-block btn-sm',onclick:()=>{
+    if(!amt.value||parseFloat(amt.value)<=0) return toast('请输入金额');
+    state.expenses.push({id:'ex_'+Date.now(),amount:parseFloat(amt.value),cat:sel.value,note:note.value.trim(),date:dt.value});
+    saveState();
+    renderBudget(body);
+  }}, '添加支出');
+  af.appendChild(addBtn);
+  body.appendChild(af);
+}
+
+// --- Bookmarks Tab ---
+function renderBookmarks(body) {
+  const bms = state.bookmarks;
+  body.innerHTML = '<h2 style="margin-bottom:12px">⭐ 景点收藏</h2>';
+  if (!bms.length) {
+    body.innerHTML += '<p style="text-align:center;color:var(--sub);padding:20px">暂无收藏景点<br>在设置向导中选择「想去」的景点</p>';
+  }
+  bms.forEach(b => {
+    const card = el('div',{className:'bm-card'});
+    card.innerHTML = `
+      <div style="font-weight:700;font-size:1rem;margin-bottom:4px">🏯 ${b.name}</div>
+      <div style="font-size:.82rem;color:var(--sub);margin-bottom:4px">📍 ${b.type||''}</div>
+      ${b.tip?`<div style="font-size:.78rem;color:var(--c3);margin-bottom:4px">💡 ${b.tip}</div>`:''}
+      <button class="bm-del" data-id="${b.id}">✕</button>
+    `;
+    card.querySelector('.bm-del').addEventListener('click',()=>{
+      state.bookmarks = state.bookmarks.filter(x=>x.id!==b.id);
+      state.picked = state.picked.filter(x=>x.id!==b.id);
+      saveState();
+      renderBookmarks(body);
+    });
+    body.appendChild(card);
+  });
+
+  // Manually add bookmark
+  const af = el('div',{style:'margin-top:16px'});
+  af.innerHTML = '<h3 style="margin-bottom:8px">+ 手动添加景点</h3>';
+  const nm = el('input',{type:'text',placeholder:'景点名称',style:'margin-bottom:8px'});
+  const ad = el('input',{type:'text',placeholder:'地址',style:'margin-bottom:8px'});
+  const afRow = el('div',{style:'display:flex;gap:8px'});
+  const rt = el('input',{type:'number',placeholder:'评分 1-5',min:0,max:5,step:0.5,style:'flex:1'});
+  const note = el('input',{type:'text',placeholder:'备注',style:'flex:2'});
+  afRow.appendChild(rt); afRow.appendChild(note);
+  const addBtn = el('button',{className:'btn btn-primary btn-block btn-sm',style:'margin-top:8px',onclick:()=>{
+    if(!nm.value.trim()) return toast('请输入景点名称');
+    state.bookmarks.push({id:'bm_'+Date.now(),name:nm.value.trim(),addr:ad.value.trim(),rating:parseFloat(rt.value)||0,note:note.value.trim(),type:'手动添加'});
+    saveState();
+    renderBookmarks(body);
+  }}, '添加景点');
+  af.appendChild(nm); af.appendChild(ad); af.appendChild(afRow); af.appendChild(addBtn);
+  body.appendChild(af);
+}
+
+// ============================================================
+// INIT
+// ============================================================
+(function init() {
+  // Setup tab buttons
+  $$('.nav-item',$('#bottom-nav')).forEach(btn => {
+    btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+  });
+
+  // Check if trip exists
+  if (loadState()) {
+    showScreen('main');
+    $('#main-title').textContent = `🗺️ ${state.trip?.dest || '旅行计划'}`;
+    switchTab('overview');
+  } else {
+    showScreen('setup');
+    renderSetupStep();
+  }
+
+  // Setup PWA manifest via blob URL (works better than data URI)
+  const manifest = {
+    name:'旅行计划',
+    short_name:'旅行',
+    start_url:location.href,
+    display:'standalone',
+    background_color:'#F8FAFB',
+    theme_color:'#2A9D8F',
+    icons:[{src:'data:image/svg+xml,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y="70" font-size="70">🗺️</text></svg>'),sizes:'192x192',type:'image/svg+xml'}]
+  };
+  const manifestBlob = new Blob([JSON.stringify(manifest)],{type:'application/json'});
+  document.getElementById('pwa-manifest').href = URL.createObjectURL(manifestBlob);
+
+  // iOS: show install hint
+  const isIOS = /iphone|ipad|ipod/.test(navigator.userAgent.toLowerCase());
+  const isStandalone = navigator.standalone || window.matchMedia('(display-mode: standalone)').matches;
+  if (isIOS && !isStandalone && !localStorage.getItem('ios_hint_shown')) {
+    setTimeout(() => {
+      toast('💡 点底部分享按钮 → 添加到主屏幕');
+      localStorage.setItem('ios_hint_shown','1');
+    }, 2000);
+  }
+
+  // Note: full offline PWA requires deployment to a server (HTTPS).
+  // When opened from local file, data is persisted via LocalStorage.
+  // Meta tags (apple-mobile-web-app-capable, theme-color) + manifest blob URL
+  // enable "Add to Home Screen" on most mobile browsers.
+})();
+</script>
+</body>
+</html>
