@@ -277,6 +277,8 @@ h3{font-size:1rem;font-weight:600;color:var(--text)}
 .speed-btn.active small{color:rgba(255,255,255,.7)}
 .speed-btn:hover:not(.active){border-color:var(--c1);color:var(--c1)}
 .speed-tip{font-size:.7rem;color:var(--c4);margin-top:6px;min-height:16px}
+.transport-item:hover{background:rgba(99,102,241,.06)!important}
+.transport-item .btn-success{background:#34d399;color:#fff;border-color:#34d399}
 /* === 测试版本时间戳 - 结束 === */
 </style>
 </head>
@@ -1058,61 +1060,72 @@ function getMockTransportInfo(from, to, date, transportType) {
   const airDist = (coordFrom&&coordTo) ? Math.round(haversineKm(coordFrom.lat,coordFrom.lon,coordTo.lat,coordTo.lon)) : 0;
 
   if (t.includes('飞机')) {
-    // 真实中国航班逻辑
     const dist = airDist||800;
-    // 实际航程 = 直线距离 × 1.05（绕飞系数）
     const flightDist = Math.round(dist*1.05);
-    // 飞行时间（巡航800km/h，起降额外各10分钟）
     const airMin = Math.round(flightDist/800*60)+20;
-    // 总耗时 = 值机安检45min + 飞行 + 滑行取行李20min
     const totalMin = airMin + 65;
-    const h=Math.floor(totalMin/60),m=totalMin%60;
-    // 票价：递减单价（短途贵，长途便宜）
     let pricePerKm;
-    if (dist<500) pricePerKm=0.85;
-    else if (dist<1000) pricePerKm=0.62;
-    else if (dist<2000) pricePerKm=0.48;
-    else pricePerKm=0.38;
-    const economy = Math.round(dist*pricePerKm/10)*10; // 取整到10元
-    // 3个航班：早班便宜、午班标准、晚班贵
-    const flights = [
-      {dep:'07:30',price:Math.round(economy*0.75),airline:'南方航空',flightNo:'CZ3'+Math.floor(dist*0.8)%900+100},
-      {dep:'12:00',price:economy,airline:'东方航空',flightNo:'MU5'+Math.floor(dist*1.1)%900+100},
-      {dep:'17:30',price:Math.round(economy*1.2),airline:'中国国航',flightNo:'CA1'+Math.floor(dist*0.9)%900+100},
+    if (dist<500) pricePerKm=0.85; else if (dist<1000) pricePerKm=0.62; else if (dist<2000) pricePerKm=0.48; else pricePerKm=0.38;
+    const economy = Math.round(dist*pricePerKm/10)*10;
+    const airlines = [
+      {name:'南方航空',prefix:'CZ',base:300},{name:'东方航空',prefix:'MU',base:500},
+      {name:'中国国航',prefix:'CA',base:100},{name:'海南航空',prefix:'HU',base:700},
+      {name:'春秋航空',prefix:'9C',base:850},{name:'吉祥航空',prefix:'HO',base:110}
     ];
-    // 按价格排序（最便宜优先）
-    flights.sort((a,b)=>a.price-b.price);
-    function addMin(t,min){const hh=parseInt(t),mm=parseInt(t.slice(3));const total=hh*60+mm+min;return `${String(Math.floor(total/60)%24).padStart(2,'0')}:${String(total%60).padStart(2,'0')}`;}
-    function timeDiff(a,b){const ah=parseInt(a),am=parseInt(a.slice(3)),bh=parseInt(b),bm=parseInt(b.slice(3));const min=(bh*60+bm)-(ah*60+am);return `${Math.floor(min/60)}h${min%60}m`;}
-    return {type:'flight',items:flights.map((f,i)=>({
-      dep:f.dep,arr:addMin(f.dep,totalMin),duration:timeDiff(f.dep,addMin(f.dep,totalMin)),
-      price:f.price,airline:f.airline,flightNo:f.flightNo
-    }))};
+    function addMin(t,m){const hh=parseInt(t),mm=parseInt(t.slice(3));const total=hh*60+mm+m;return `${String(Math.floor(total/60)%24).padStart(2,'0')}:${String(total%60).padStart(2,'0')}`;}
+    // 生成全天航班：6:00-22:00，每1.5-2.5小时一班
+    const flights = [];
+    const dayStart = 360; // 6:00 in minutes
+    const dayEnd = 1320;  // 22:00
+    const interval = dist<500?90:dist<1000?110:140;
+    const eat = economy;
+    const biz = Math.round(eat*2.5); const first = Math.round(eat*5);
+    for (let t=dayStart; t<=dayEnd; t+=interval+Math.floor(Math.random()*40)) {
+      const depH=Math.floor(t/60),depM=t%60;
+      const dep = `${String(depH).padStart(2,'0')}:${String(depM).padStart(2,'0')}`;
+      const arr = addMin(dep,totalMin);
+      const al=airlines[flights.length%airlines.length];
+      const priceVar = 0.8 + Math.random()*0.5;
+      flights.push({dep,arr,duration:totalMin,
+        economy:Math.round(eat*priceVar/10)*10,business:Math.round(biz*priceVar/10)*10,first:Math.round(first*priceVar/10)*10,
+        airline:al.name,flightNo:al.prefix+(al.base+Math.floor(dist*0.5)%900+100),
+        status:Math.random()>0.15?'有票':(Math.random()>0.5?'仅剩少量':'候补')});
+    }
+    flights.sort((a,b)=>a.dep.localeCompare(b.dep));
+    return {type:'flight',items:flights,totalMin,from,to,date};
   }
   if (t.includes('高铁')) {
-    // 真实中国高铁逻辑
     const dist = airDist||600;
-    // 实际铁路里程 = 直线 × 1.15（绕行系数）
     const railDist = Math.round(dist*1.15);
-    // G字头：均速280km/h，含中途停站（每300km停一站+5min）
     const stops = Math.floor(railDist/300);
     const railMin = Math.round(railDist/280*60)+stops*5;
-    const h=Math.floor(railMin/60),m=railMin%60;
-    // 票价：G车二等座 ~0.46元/km，短途上浮
     const rate = dist<300?0.52:(dist<800?0.48:0.44);
-    const secondClass = Math.round(railDist*rate/5)*5;
-    const trains = [
-      {dep:'06:50',price:Math.round(secondClass*0.85),code:'G'+Math.floor(1000+dist*3.2)%900+100},
-      {dep:'11:20',price:secondClass,code:'G'+Math.floor(1000+dist*2.8)%900+100},
-      {dep:'16:10',price:Math.round(secondClass*1.1),code:'G'+Math.floor(1000+dist*3.5)%900+100},
-    ];
-    function addMin(t,min){const hh=parseInt(t),mm=parseInt(t.slice(3));const total=hh*60+mm+min;return `${String(Math.floor(total/60)%24).padStart(2,'0')}:${String(total%60).padStart(2,'0')}`;}
-    function timeDiff(a,b){const ah=parseInt(a),am=parseInt(a.slice(3)),bh=parseInt(b),bm=parseInt(b.slice(3));const min=(bh*60+bm)-(ah*60+am);return `${Math.floor(min/60)}h${min%60}m`;}
-    trains.sort((a,b)=>a.price-b.price);
-    return {type:'train',items:trains.map(t=>({
-      dep:t.dep,arr:addMin(t.dep,railMin),duration:timeDiff(t.dep,addMin(t.dep,railMin)),
-      price:t.price,code:t.code
-    }))};
+    const second = Math.round(railDist*rate/5)*5;
+    const first = Math.round(second*1.6/5)*5;
+    const business = Math.round(second*3.2/5)*5;
+    function addMin(t,m){const hh=parseInt(t),mm=parseInt(t.slice(3));const total=hh*60+mm+m;return `${String(Math.floor(total/60)%24).padStart(2,'0')}:${String(total%60).padStart(2,'0')}`;}
+    // 生成全天高铁：6:00-22:00，每25-50分钟一班
+    const trains = [];
+    const dayStart = 360;
+    const dayEnd = 1320;
+    const interval = dist<200?25:dist<500?35:50;
+    const types = dist>500?['G']:['G','G','D'];
+    for (let t=dayStart; t<=dayEnd; t+=interval+Math.floor(Math.random()*15)) {
+      const depH=Math.floor(t/60),depM=t%60;
+      const dep = `${String(depH).padStart(2,'0')}:${String(depM).padStart(2,'0')}`;
+      const arr = addMin(dep,railMin);
+      const typ = types[Math.floor(Math.random()*types.length)];
+      const priceVar = 0.85 + Math.random()*0.3;
+      const dMin = typ==='D'?Math.round(railMin*1.4):railMin;
+      trains.push({dep,arr,duration:dMin,code:typ+Math.floor(typ==='G'?1000+dist*3:2000+dist*2)%900+100,
+        second:Math.round(second*priceVar/5)*5*(typ==='D'?0.65:1),
+        first:Math.round(first*priceVar/5)*5*(typ==='D'?0.65:1),
+        business:Math.round(business*priceVar/5)*5,
+        status:Math.random()>0.2?'有票':(Math.random()>0.5?'候补':'无票')});
+    }
+    trains.sort((a,b)=>a.dep.localeCompare(b.dep));
+    return {type:'train',items:trains,railMin,from,to,date};
+  }
   }
   if (t.includes('自驾')) {
     /* === 自驾路线计算 - 开始 === */
@@ -1370,14 +1383,87 @@ function buildCard(step, card) {
     let infoHtml = '';
     if (info.type==='flight'||info.type==='train') {
       const isFlight = info.type==='flight';
-      infoHtml = `<div style="font-size:.8rem;color:var(--sub);text-align:center;margin-bottom:8px">${from} → ${to} · ${setupData.dateFrom||'日期'}</div>`;
-      info.items.forEach(item => {
-        infoHtml += `<div class="card" style="padding:10px 14px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center">
-          <div><strong style="font-size:1rem">${item.dep}</strong> → <strong style="font-size:1rem">${item.arr}</strong><br><small style="color:var(--sub)">${item.duration} · ${isFlight?(item.flightNo+' '):''}${isFlight?item.airline:item.code}</small></div>
-          <div style="text-align:right;color:var(--c4);font-weight:700">¥${item.price}<br><small style="color:var(--sub);font-weight:400">起</small></div>
-        </div>`;
-      });
-      infoHtml += '<div class="hint" style="text-align:center;margin-top:4px">📦 模拟数据，仅供参考 · <a href="https://www.ctrip.com/" target="_blank" style="color:var(--c1)">前往携程查询实时票价 →</a></div>';
+      const count = info.items.length;
+      function fmtDur(min){const h=Math.floor(min/60),m=min%60;return h>0?`${h}h${m}m`:`${m}m`;}
+      // Sort/filter bar
+      infoHtml = `<div style="font-size:.8rem;color:var(--sub);text-align:center;margin-bottom:4px">${from} → ${to} · ${setupData.dateFrom||'日期'} · 共 <strong style="color:var(--c1)">${count}</strong> ${isFlight?'趟航班':'趟车次'}</div>
+        <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap">
+          <select class="transport-sort" onchange="sortTransportList(this.value)" style="font-size:.75rem;padding:4px 8px;border-radius:6px;border:1px solid var(--border);background:var(--glass-bg);color:var(--text)">
+            <option value="time-asc">🕐 最早出发</option><option value="time-desc">🕐 最晚出发</option><option value="dur-asc">⏱️ 历时最短</option><option value="price-asc">💰 价格最低</option>
+          </select>
+          ${isFlight?'<select class="transport-filter" onchange="filterTransportList(this.value)" style="font-size:.75rem;padding:4px 8px;border-radius:6px;border:1px solid var(--border);background:var(--glass-bg);color:var(--text)"><option value="all">全部舱位</option><option value="economy">💺 经济舱</option><option value="business">🛋️ 商务舱</option></select>':''}
+          <span style="font-size:.7rem;color:var(--sub);margin-left:auto;align-self:center">📦 模拟数据</span>
+        </div>
+        <div id="transport-list" class="transport-list" style="max-height:400px;overflow-y:auto"></div>
+        <div class="hint" style="text-align:center;margin-top:6px">📦 模拟数据仅供参考 · <a href="https://www.ctrip.com/" target="_blank" style="color:var(--c1)">携程查实时票价 →</a></div>`;
+
+      // Render list after card is inserted
+      setTimeout(()=>{
+        const listEl = document.getElementById('transport-list');
+        if (!listEl) return;
+        function renderItems(items) {
+          listEl.innerHTML = '';
+          items.forEach((item,idx) => {
+            const row = document.createElement('div');
+            row.className = 'transport-item';
+            row.style.cssText = 'padding:8px 10px;margin-bottom:4px;background:var(--glass-bg);backdrop-filter:blur(8px);border:1px solid var(--glass-border);border-radius:8px;cursor:pointer;transition:.15s';
+            const minPrice = isFlight?item.economy:item.second;
+            const label = isFlight?(item.flightNo+' '+item.airline):item.code;
+            const sel = setupData.selectedTransport;
+            const isSel = sel && sel.code===item.code && sel.dep===item.dep;
+            row.innerHTML = `
+              <div style="display:flex;justify-content:space-between;align-items:center" onclick="toggleTransportDetail(this,${idx})">
+                <div><strong style="font-size:.95rem">${item.dep}</strong> → <strong style="font-size:.95rem">${item.arr}</strong> <span style="font-size:.75rem;color:var(--sub)">${fmtDur(item.duration)}</span><br><small style="color:var(--sub)">${label}</small></div>
+                <div style="text-align:right"><span style="font-weight:700;color:var(--c4)">¥${minPrice}</span><small style="color:var(--sub)">起</small><br><span style="font-size:.7rem;padding:1px 6px;border-radius:8px;background:${item.status==='有票'?'rgba(52,211,153,.15);color:#34d399':item.status==='候补'?'rgba(251,191,36,.15);color:#fbbf24':'rgba(239,68,68,.15);color:var(--c4)'}">${item.status}</span></div>
+                <span style="font-size:.7rem;color:var(--sub)">▸</span>
+              </div>
+              <div class="transport-detail" style="display:none;margin-top:6px;padding-top:6px;border-top:1px solid var(--border)">
+                ${isFlight?`
+                  <div style="display:flex;justify-content:space-between;font-size:.78rem;padding:2px 0"><span>💺 经济舱</span><span style="font-weight:600">¥${item.economy}</span></div>
+                  <div style="display:flex;justify-content:space-between;font-size:.78rem;padding:2px 0"><span>🛋️ 商务舱</span><span style="font-weight:600">¥${item.business}</span></div>
+                  <div style="display:flex;justify-content:space-between;font-size:.78rem;padding:2px 0"><span>👑 头等舱</span><span style="font-weight:600">¥${item.first}</span></div>
+                `:`
+                  <div style="display:flex;justify-content:space-between;font-size:.78rem;padding:2px 0"><span>💺 二等座</span><span style="font-weight:600">¥${item.second}</span></div>
+                  <div style="display:flex;justify-content:space-between;font-size:.78rem;padding:2px 0"><span>🛋️ 一等座</span><span style="font-weight:600">¥${item.first}</span></div>
+                  <div style="display:flex;justify-content:space-between;font-size:.78rem;padding:2px 0"><span>👑 商务座</span><span style="font-weight:600">¥${item.business}</span></div>
+                `}
+                <button class="btn btn-sm ${isSel?'btn-success':'btn-outline'}" style="margin-top:6px;width:100%;font-size:.75rem" onclick="selectTransport(${idx},'${item.dep}','${item.code||item.flightNo}')">${isSel?'✅ 已选择':'选择此'+(isFlight?'航班':'车次')}</button>
+              </div>
+            `;
+            listEl.appendChild(row);
+          });
+        }
+        renderItems(info.items);
+        window._transportItems = info.items;
+        window._transportIsFlight = isFlight;
+
+        window.sortTransportList = function(sort) {
+          const items = window._transportItems.slice();
+          if (sort==='time-asc') items.sort((a,b)=>a.dep.localeCompare(b.dep));
+          else if (sort==='time-desc') items.sort((a,b)=>b.dep.localeCompare(a.dep));
+          else if (sort==='dur-asc') items.sort((a,b)=>a.duration-b.duration);
+          else if (sort==='price-asc') items.sort((a,b)=>(window._transportIsFlight?a.economy:a.second)-(window._transportIsFlight?b.economy:b.second));
+          renderItems(items);
+        };
+        window.toggleTransportDetail = function(row, idx) {
+          const detail = row.nextElementSibling;
+          const arrow = row.querySelector('span:last-child');
+          if (detail.style.display==='none') { detail.style.display='block'; arrow.textContent='▾'; }
+          else { detail.style.display='none'; arrow.textContent='▸'; }
+        };
+        window.selectTransport = function(idx, dep, code) {
+          const item = window._transportItems[idx];
+          setupData.selectedTransport = {...item,dep,code};
+          document.querySelectorAll('.transport-item .btn-success,.transport-item .btn-outline').forEach(b=>{
+            b.className='btn btn-sm btn-outline'; b.textContent='选择此'+(window._transportIsFlight?'航班':'车次');
+            b.style.width='100%'; b.style.fontSize='.75rem';
+          });
+          // Re-render to update all buttons
+          renderItems(window._transportItems);
+          toast('✅ 已选择 '+(window._transportIsFlight?item.flightNo+' '+item.airline:item.code));
+        };
+        window.filterTransportList = function(){}; // placeholder
+      },50);
     } else if (info.type==='drive') {
       infoHtml = `<div class="card" style="padding:16px">
         <div style="text-align:center;font-size:1.15rem;font-weight:700;margin-bottom:12px">🚗 ${from} → ${to}</div>
