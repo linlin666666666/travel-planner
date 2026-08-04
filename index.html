@@ -39,12 +39,12 @@ select{background:#fff;color:var(--text);border:1px solid var(--border);border-r
 @supports not (backdrop-filter:blur(16px)){.glass{background:var(--card-fallback)}}
 
 /* ===== Float animations (unchanged) ===== */
-@keyframes float{0%,100%{transform:translate(0,0) rotate(0deg)}25%{transform:translate(1.5px,-2px) rotate(.15deg)}50%{transform:translate(-1px,1px) rotate(-.1deg)}75%{transform:translate(1px,1.5px) rotate(.05deg)}}
-@keyframes float-alt{0%,100%{transform:translate(0,0) rotate(0deg)}33%{transform:translate(-1.5px,-1px) rotate(-.15deg)}66%{transform:translate(2px,.5px) rotate(.1deg)}}
-@keyframes float-slow{0%,100%{transform:translate(0,0)}50%{transform:translate(1px,-1.5px)}}
-.float{animation:float 8s ease-in-out infinite}
-.float-alt{animation:float-alt 10s ease-in-out infinite}
-.float-slow{animation:float-slow 12s ease-in-out infinite}
+@keyframes float{0%,100%{transform:translate(0,0)}25%{transform:translate(2px,-2px)}50%{transform:translate(-1px,1px)}75%{transform:translate(1px,1px)}}
+@keyframes float-alt{0%,100%{transform:translate(0,0)}33%{transform:translate(-2px,-1px)}66%{transform:translate(2px,1px)}}
+@keyframes float-slow{0%,100%{transform:translate(0,0)}50%{transform:translate(1px,-2px)}}
+.float{animation:float 8s ease-in-out infinite;will-change:transform}
+.float-alt{animation:float-alt 10s ease-in-out infinite;will-change:transform}
+.float-slow{animation:float-slow 12s ease-in-out infinite;will-change:transform}
 
 /* ===== Typography ===== */
 h1{font-size:1.5rem;font-weight:700;color:var(--text)}
