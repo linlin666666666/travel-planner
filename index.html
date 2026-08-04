@@ -279,63 +279,161 @@ function switchTab(tab) {
 }
 
 // ============================================================
-// API HELPERS
+// API HELPERS (with timeout & China-friendly fallbacks)
 // ============================================================
-async function geocode(city) {
-  const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(city)}&limit=1&accept-language=zh`;
-  const r = await fetch(url, {headers:{'User-Agent':'TravelPlanner/1.0'}});
-  const d = await r.json();
-  if (!d.length) throw new Error('未找到该城市');
-  return {lat:parseFloat(d[0].lat),lon:parseFloat(d[0].lon),display_name:d[0].display_name};
+function fetchWithTimeout(url, opts={}, ms=8000) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), ms);
+  return fetch(url, {...opts, signal:ctrl.signal}).finally(() => clearTimeout(timer));
 }
 
-async function fetchAttractions(lat, lon) {
-  const b = 0.05;
-  const south = lat - b, west = lon - b, north = lat + b, east = lon + b;
-  const query = `[out:json];(nwr["tourism"~"attraction|museum|viewpoint|gallery|artwork"](${south},${west},${north},${east});nwr["historic"~"monument|memorial|castle|ruins|archaeological_site"](${south},${west},${north},${east});way["leisure"="park"](${south},${west},${north},${east}););out center 20;`;
-  const url = 'https://overpass-api.de/api/interpreter';
-  const r = await fetch(url, {method:'POST',body:query});
-  const d = await r.json();
-  const items = [];
-  const seen = new Set();
-  (d.elements||[]).forEach(e => {
-    const t = e.tags||{};
-    const name = t['name:zh'] || t.name || t['alt_name'] || '';
-    if (!name || seen.has(name)) return;
-    seen.add(name);
-    const typ = t.tourism || t.historic || '景点';
-    const typMap = {attraction:'景点',museum:'博物馆',viewpoint:'观景台',gallery:'美术馆',artwork:'艺术',monument:'纪念碑',memorial:'纪念馆',castle:'城堡',ruins:'古迹',archaeological_site:'遗址',park:'公园'};
-    items.push({id:`osm_${e.id}`,name,type:typMap[typ]||typ,lat:e.lat||e.center?.lat,lon:e.lon||e.center?.lon});
-  });
-  return items.slice(0,10);
+async function geocode(city) {
+  // Try Nominatim first
+  try {
+    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(city)}&limit=1&accept-language=zh`;
+    const r = await fetchWithTimeout(url, {headers:{'User-Agent':'TravelPlanner/1.0'}});
+    const d = await r.json();
+    if (d.length) return {lat:parseFloat(d[0].lat),lon:parseFloat(d[0].lon),display_name:d[0].display_name};
+  } catch(e) { console.log('Nominatim failed:', e.message); }
+
+  // Fallback: built-in city coordinates
+  const cityDB = {
+    '北京':{lat:39.9,lon:116.4,dn:'北京, 中国'},
+    '上海':{lat:31.2,lon:121.5,dn:'上海, 中国'},
+    '广州':{lat:23.1,lon:113.3,dn:'广州, 中国'},
+    '深圳':{lat:22.5,lon:114.1,dn:'深圳, 中国'},
+    '成都':{lat:30.6,lon:104.1,dn:'成都, 中国'},
+    '重庆':{lat:29.6,lon:106.5,dn:'重庆, 中国'},
+    '杭州':{lat:30.3,lon:120.2,dn:'杭州, 中国'},
+    '南京':{lat:32.1,lon:118.8,dn:'南京, 中国'},
+    '武汉':{lat:30.6,lon:114.3,dn:'武汉, 中国'},
+    '西安':{lat:34.3,lon:108.9,dn:'西安, 中国'},
+    '长沙':{lat:28.2,lon:113.0,dn:'长沙, 中国'},
+    '厦门':{lat:24.5,lon:118.1,dn:'厦门, 中国'},
+    '青岛':{lat:36.1,lon:120.4,dn:'青岛, 中国'},
+    '大连':{lat:38.9,lon:121.6,dn:'大连, 中国'},
+    '三亚':{lat:18.2,lon:109.5,dn:'三亚, 中国'},
+    '昆明':{lat:25.0,lon:102.7,dn:'昆明, 中国'},
+    '丽江':{lat:26.9,lon:100.2,dn:'丽江, 中国'},
+    '拉萨':{lat:29.7,lon:91.1,dn:'拉萨, 中国'},
+    '哈尔滨':{lat:45.8,lon:126.5,dn:'哈尔滨, 中国'},
+    '苏州':{lat:31.3,lon:120.6,dn:'苏州, 中国'},
+    '桂林':{lat:25.3,lon:110.3,dn:'桂林, 中国'},
+    '张家界':{lat:29.1,lon:110.5,dn:'张家界, 中国'},
+    '大理':{lat:25.6,lon:100.3,dn:'大理, 中国'},
+    '东京':{lat:35.7,lon:139.7,dn:'东京, 日本'},
+    '大阪':{lat:34.7,lon:135.5,dn:'大阪, 日本'},
+    '京都':{lat:35.0,lon:135.8,dn:'京都, 日本'},
+    '首尔':{lat:37.6,lon:127.0,dn:'首尔, 韩国'},
+    '曼谷':{lat:13.8,lon:100.5,dn:'曼谷, 泰国'},
+    '新加坡':{lat:1.35,lon:103.8,dn:'新加坡'},
+    '巴黎':{lat:48.9,lon:2.35,dn:'巴黎, 法国'},
+    '伦敦':{lat:51.5,lon:-0.13,dn:'伦敦, 英国'},
+  };
+  const key = Object.keys(cityDB).find(k => city.includes(k) || k.includes(city));
+  if (key) return cityDB[key];
+  throw new Error('未找到该城市，请尝试输入更具体的地名');
+}
+
+// Built-in attraction data for popular cities (fallback when API blocked)
+const BUILTIN_ATTRACTIONS = {
+  '北京':[
+    {name:'故宫博物院',type:'博物馆',desc:'明清两代皇家宫殿，世界最大宫殿建筑群，中国最著名的历史文化地标。',tip:'🎫 提前7天预约，周一闭馆'},
+    {name:'长城（八达岭）',type:'古迹',desc:'世界文化遗产，中国古代最伟大的防御工程，气势磅礴。',tip:'👟 穿舒适的鞋，爬长城需要体力'},
+    {name:'天安门广场',type:'景点',desc:'世界最大城市广场，中国国家象征，每天清晨有升旗仪式。',tip:'🌅 升旗时间随日出，提前查好时间'},
+    {name:'颐和园',type:'公园',desc:'中国现存最大皇家园林，昆明湖与万寿山组成绝美画卷。',tip:'🚣 建议游玩半天，可乘船游湖'},
+    {name:'天坛',type:'古迹',desc:'明清皇帝祭天场所，祈年殿是中国古建筑杰出代表。',tip:'📸 清晨光线最好，适合拍照'},
+  ],
+  '上海':[
+    {name:'外滩',type:'景点',desc:'黄浦江畔的万国建筑博览群，隔江相望陆家嘴摩天大楼。',tip:'🌃 夜景最美，建议晚上去'},
+    {name:'东方明珠',type:'观景台',desc:'上海地标，高468米，可俯瞰整个上海市区。',tip:'🎫 提前网上购票比现场便宜'},
+    {name:'豫园',type:'公园',desc:'明代江南古典园林，周边城隍庙美食云集。',tip:'🍜 南翔小笼包不容错过'},
+    {name:'上海迪士尼',type:'景点',desc:'中国大陆首座迪士尼乐园，奇幻童话城堡。',tip:'🎢 工作日去人少，下载App抢FP'},
+    {name:'南京路步行街',type:'景点',desc:'中国最著名商业街，老字号与新潮店并存。',tip:'🛍️ 注意保管随身物品'},
+  ],
+  '成都':[
+    {name:'宽窄巷子',type:'景点',desc:'清代古街巷，集美食、茶文化、川剧于一体的文化街区。',tip:'🍵 找家茶馆体验盖碗茶'},
+    {name:'大熊猫繁育基地',type:'景点',desc:'近距离观看国宝大熊猫，尤其是可爱的熊猫宝宝。',tip:'🌅 早上9点前去，熊猫最活跃'},
+    {name:'武侯祠',type:'古迹',desc:'纪念诸葛亮和刘备的祠庙，三国文化圣地。',tip:'📚 隔壁锦里可以一起游玩'},
+    {name:'都江堰',type:'古迹',desc:'两千多年历史的水利工程，世界文化遗产。',tip:'👟 景区大，穿舒适的鞋'},
+    {name:'青城山',type:'景点',desc:'道教名山，环境清幽，有"青城天下幽"的美誉。',tip:'🧗 前山人文后山自然，选一条即可'},
+  ],
+  '杭州':[
+    {name:'西湖',type:'景点',desc:'中国最美湖泊之一，十景闻名，断桥残雪、雷峰夕照。',tip:'🚲 租辆自行车环湖最惬意'},
+    {name:'灵隐寺',type:'寺庙',desc:'千年古刹，江南禅宗名寺，飞来峰石刻精美。',tip:'🙏 上午去人少，进殿保持安静'},
+    {name:'西溪湿地',type:'公园',desc:'城市中的湿地公园，《非诚勿扰》取景地。',tip:'🛶 坐船游览最好，徒步路线较长'},
+  ],
+  '三亚':[
+    {name:'亚龙湾',type:'景点',desc:'中国最美海滩之一，沙质细腻如粉，海水清澈。',tip:'🌊 自带防晒和泳具更划算'},
+    {name:'天涯海角',type:'景点',desc:'海南标志性景区，巨石海滩配上浪漫传说。',tip:'📸 日落时分拍照最美'},
+    {name:'南山文化旅游区',type:'景点',desc:'108米海上观音宏伟壮观，佛教文化圣地。',tip:'🙏 景区很大建议坐电瓶车'},
+  ],
+  '厦门':[
+    {name:'鼓浪屿',type:'景点',desc:'万国建筑博览，钢琴之岛，世界文化遗产。',tip:'🚢 船票提前网上订，现场很难买到'},
+    {name:'南普陀寺',type:'寺庙',desc:'闽南佛教圣地，依山而建，环境清幽。',tip:'🙏 免费进入，素食馆很有名'},
+    {name:'环岛路',type:'景点',desc:'最美海岸线公路，适合骑行看海。',tip:'🚲 租辆自行车慢慢骑'},
+  ],
+  '西安':[
+    {name:'兵马俑',type:'博物馆',desc:'世界第八大奇迹，秦始皇陵陪葬陶俑，震撼人心。',tip:'🎫 一定要请讲解或租讲解器'},
+    {name:'大雁塔',type:'古迹',desc:'唐代玄奘法师译经之地，西安地标建筑。',tip:'🌃 晚上有音乐喷泉表演'},
+    {name:'回民街',type:'景点',desc:'西安美食聚集地，各种西北小吃应有尽有。',tip:'🍜 羊肉泡馍、肉夹馍必尝'},
+    {name:'古城墙',type:'古迹',desc:'中国保存最完整的古城墙，可骑行环游。',tip:'🚲 租自行车骑行一圈约2小时'},
+  ],
+};
+
+async function fetchAttractions(city, lat, lon) {
+  // Try Overpass API first
+  try {
+    const b = 0.05;
+    const south = lat - b, west = lon - b, north = lat + b, east = lon + b;
+    const query = `[out:json];(nwr["tourism"~"attraction|museum|viewpoint|gallery|artwork"](${south},${west},${north},${east});nwr["historic"~"monument|memorial|castle|ruins|archaeological_site"](${south},${west},${north},${east});way["leisure"="park"](${south},${west},${north},${east}););out center 20;`;
+    const r = await fetchWithTimeout('https://overpass-api.de/api/interpreter', {method:'POST',body:query}, 10000);
+    const d = await r.json();
+    const items = [];
+    const seen = new Set();
+    (d.elements||[]).forEach(e => {
+      const t = e.tags||{};
+      const name = t['name:zh'] || t.name || t['alt_name'] || '';
+      if (!name || seen.has(name)) return;
+      seen.add(name);
+      const typ = t.tourism || t.historic || '景点';
+      const typMap = {attraction:'景点',museum:'博物馆',viewpoint:'观景台',gallery:'美术馆',artwork:'艺术',monument:'纪念碑',memorial:'纪念馆',castle:'城堡',ruins:'古迹',archaeological_site:'遗址',park:'公园'};
+      items.push({id:`osm_${e.id}`,name,type:typMap[typ]||typ,desc:'',tip:'',lat:e.lat||e.center?.lat,lon:e.lon||e.center?.lon});
+    });
+    if (items.length > 0) return {source:'api', data:items.slice(0,10)};
+  } catch(e) { console.log('Overpass API failed:', e.message); }
+
+  // Fallback: built-in data
+  const key = Object.keys(BUILTIN_ATTRACTIONS).find(k => city.includes(k));
+  if (key) return {source:'builtin', data:BUILTIN_ATTRACTIONS[key].map((a,i)=>({id:'b_'+i,...a}))};
+  return {source:'none', data:[]};
 }
 
 async function fetchWikiSummary(title, lang='zh') {
-  try {
-    const url = `https://${lang}.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`;
-    const r = await fetch(url);
-    if (!r.ok) return null;
-    const d = await r.json();
-    return d.extract ? d.extract.slice(0,200)+(d.extract.length>200?'…':'') : null;
-  } catch { return null; }
+  // Wikipedia blocked in China, skip
+  return null;
 }
 
 async function fetchWeather(lat, lon, startDate, endDate) {
-  const s = startDate, e = endDate;
-  const days = Math.min(Math.ceil((new Date(e)-new Date(s))/86400000)+1, 16);
-  const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=temperature_2m_max,temperature_2m_min,weathercode,precipitation_probability_max,windspeed_10m_max&timezone=auto&forecast_days=${Math.min(days,16)}`;
-  const r = await fetch(url);
-  const d = await r.json();
-  if (!d.daily) return null;
-  const wcodes = {0:'☀️ 晴',1:'🌤️ 晴',2:'⛅ 多云',3:'☁️ 阴',45:'🌫️ 雾',48:'🌫️ 雾',51:'🌦️ 小雨',53:'🌦️ 小雨',55:'🌦️ 小雨',61:'🌧️ 雨',63:'🌧️ 雨',65:'🌧️ 大雨',71:'🌨️ 雪',73:'🌨️ 雪',75:'🌨️ 大雪',80:'🌦️ 阵雨',81:'🌧️ 阵雨',82:'🌧️ 暴雨',95:'⛈️ 雷暴',96:'⛈️ 雷暴+冰雹',99:'⛈️ 强雷暴'};
-  return d.daily.time.map((t,i)=>({
-    date:t,
-    max:d.daily.temperature_2m_max[i],
-    min:d.daily.temperature_2m_min[i],
-    weather:wcodes[d.daily.weathercode[i]]||'🌡️ 未知',
-    rain:d.daily.precipitation_probability_max[i],
-    wind:d.daily.windspeed_10m_max[i],
-  }));
+  try {
+    const days = Math.min(Math.ceil((new Date(endDate)-new Date(startDate))/86400000)+1, 16);
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=temperature_2m_max,temperature_2m_min,weathercode,precipitation_probability_max,windspeed_10m_max&timezone=auto&forecast_days=${Math.min(days,16)}`;
+    const r = await fetchWithTimeout(url, {}, 8000);
+    const d = await r.json();
+    if (!d.daily) return null;
+    const wcodes = {0:'☀️ 晴',1:'🌤️ 晴',2:'⛅ 多云',3:'☁️ 阴',45:'🌫️ 雾',48:'🌫️ 雾',51:'🌦️ 小雨',53:'🌦️ 小雨',55:'🌦️ 小雨',61:'🌧️ 雨',63:'🌧️ 雨',65:'🌧️ 大雨',71:'🌨️ 雪',73:'🌨️ 雪',75:'🌨️ 大雪',80:'🌦️ 阵雨',81:'🌧️ 阵雨',82:'🌧️ 暴雨',95:'⛈️ 雷暴',96:'⛈️ 雷暴+冰雹',99:'⛈️ 强雷暴'};
+    return d.daily.time.map((t,i)=>({
+      date:t,
+      max:d.daily.temperature_2m_max[i],
+      min:d.daily.temperature_2m_min[i],
+      weather:wcodes[d.daily.weathercode[i]]||'🌡️ 未知',
+      rain:d.daily.precipitation_probability_max[i],
+      wind:d.daily.windspeed_10m_max[i],
+    }));
+  } catch(e) {
+    console.log('Weather API failed:', e.message);
+    return null;
+  }
 }
 
 function clothingAdvice(weatherDays) {
@@ -476,35 +574,33 @@ function renderSetupStep() {
     (async () => {
       try {
         if (!geoResult) geoResult = await geocode(setupData.dest);
-        const items = await fetchAttractions(geoResult.lat, geoResult.lon);
-        attractionsData = items;
+        const result = await fetchAttractions(setupData.dest, geoResult.lat, geoResult.lon);
+        attractionsData = result.data;
         const container = $('#attrs-container');
         $('#attrs-loading').style.display = 'none';
-        if (!items.length) {
-          container.innerHTML = '<p style="text-align:center;color:var(--sub);padding:20px">该城市暂无景点数据</p>';
+
+        // Show source badge
+        const srcBadge = result.source==='builtin'
+          ? '<div style="text-align:center;font-size:.75rem;color:var(--c3);margin-bottom:8px">📦 内置景点数据（在线API不可用时）</div>'
+          : '<div style="text-align:center;font-size:.75rem;color:var(--sub);margin-bottom:8px">🌐 实时数据</div>';
+
+        if (!result.data.length) {
+          container.innerHTML = srcBadge+'<p style="text-align:center;color:var(--sub);padding:20px">该城市暂无景点数据<br><small>你可以后续手动添加景点</small></p>';
           return;
         }
-        items.forEach((item,i) => {
+        container.innerHTML = srcBadge;
+        result.data.forEach((item,i) => {
           const card = el('div',{className:'attr-card'});
-          const img = el('div',{className:'attr-img'}, item.type === '公园'?'🌳':item.type==='博物馆'?'🏛️':item.type==='城堡'?'🏰':item.type==='寺庙'?'🛕':item.type==='观景台'?'🏔️':'🏯');
+          const img = el('div',{className:'attr-img'}, item.type==='公园'?'🌳':item.type==='博物馆'?'🏛️':item.type==='城堡'?'🏰':item.type==='寺庙'?'🛕':item.type==='观景台'?'🏔️':'🏯');
           const body = el('div',{className:'attr-body'});
           body.appendChild(el('span',{className:'attr-type'}, item.type));
           body.appendChild(el('div',{className:'attr-name'}, item.name));
-          body.appendChild(el('div',{className:'attr-loc'}, `📍 ${geoResult.display_name.split(',')[0]}`));
-          const descDiv = el('div',{className:'attr-desc',id:`desc_${i}`}, '加载简介中…');
-          body.appendChild(descDiv);
-          // Tips based on type
-          const tips = {
-            '寺庙':'🙏 进入寺庙请保持安静，注意着装得体',
-            '博物馆':'📸 部分展区可能禁止拍照，提前确认',
-            '公园':'🌿 户外景点，注意防晒和防蚊',
-            '城堡':'👟 建议穿舒适的鞋，可能需要走很多路',
-            '观景台':'📷 日落时分景色最佳，提前占位',
-            '古迹':'🌞 户外遗址，避开正午烈日',
-            '遗址':'🌞 户外遗址，避开正午烈日',
-            '纪念碑':'📸 地标打卡，人多时需排队',
-          };
-          const tip = tips[item.type]||'✨ 提前查看开放时间，避开高峰时段';
+          body.appendChild(el('div',{className:'attr-loc'}, `📍 ${result.source==='builtin'?setupData.dest:geoResult.display_name.split(',')[0]}`));
+          // Description
+          const descText = item.desc || (result.source==='api'?'加载简介中…':'暂无简介');
+          body.appendChild(el('div',{className:'attr-desc'}, descText));
+          // Tips
+          const tip = item.tip || (result.source==='api'?'✨ 提前查看开放时间，避开高峰时段':'✨ 提前了解开放时间');
           body.appendChild(el('div',{className:'attr-tip'}, `💡 ${tip}`));
 
           const actions = el('div',{className:'attr-actions'});
@@ -530,14 +626,16 @@ function renderSetupStep() {
           card.appendChild(body);
           container.appendChild(card);
 
-          // Async fetch wiki summary
-          fetchWikiSummary(item.name).then(summary => {
-            if (summary) descDiv.textContent = summary;
-            else descDiv.textContent = '暂无简介';
-          });
+          // Async fetch wiki (only for API-sourced items without desc)
+          if (result.source==='api' && !item.desc) {
+            fetchWikiSummary(item.name).then(summary => {
+              if (summary) { const d = card.querySelector('.attr-desc'); if(d)d.textContent = summary; }
+              else { const d = card.querySelector('.attr-desc'); if(d)d.textContent = '暂无简介'; }
+            });
+          }
         });
       } catch(e) {
-        $('#attrs-loading').innerHTML = `<p style="text-align:center;color:var(--c4)">加载失败: ${e.message}</p>`;
+        $('#attrs-loading').innerHTML = `<p style="text-align:center;color:var(--c4)">加载失败: ${e.message}<br><small>请检查网络连接后重试</small></p>`;
       }
     })();
 
