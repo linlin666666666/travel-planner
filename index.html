@@ -67,9 +67,7 @@ h3{font-size:1rem;font-weight:600;color:var(--text)}
 .nav-item .icon{font-size:1.4rem;line-height:1}
 
 /* ===== Cards ===== */
-.card{background:var(--glass-bg);backdrop-filter:blur(16px) saturate(180%);-webkit-backdrop-filter:blur(16px) saturate(180%);border:1px solid rgba(255,255,255,.6);border-top:1px solid rgba(255,255,255,.8);border-radius:var(--radius);padding:16px;box-shadow:var(--shadow);margin-bottom:12px;animation:float 8s ease-in-out infinite}
-.card:nth-child(odd){animation-name:float-alt;animation-duration:10s}
-.card:nth-child(3n){animation-name:float-slow;animation-duration:12s}
+.card{background:var(--glass-bg);backdrop-filter:blur(16px) saturate(180%);-webkit-backdrop-filter:blur(16px) saturate(180%);border:1px solid rgba(255,255,255,.6);border-top:1px solid rgba(255,255,255,.8);border-radius:var(--radius);padding:16px;box-shadow:var(--shadow);margin-bottom:12px}
 @supports not (backdrop-filter:blur(16px)){.card{background:var(--card-fallback)}}
 .card-row{display:flex;align-items:center;gap:12px}
 
@@ -122,9 +120,7 @@ h3{font-size:1rem;font-weight:600;color:var(--text)}
 .step-dot.current{background:var(--c1);box-shadow:0 0 0 4px var(--c1-glow)}
 
 /* ===== Attraction Card ===== */
-.attr-card{border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow);margin-bottom:14px;background:var(--glass-bg);backdrop-filter:blur(16px) saturate(180%);-webkit-backdrop-filter:blur(16px) saturate(180%);border:1px solid rgba(255,255,255,.6);animation:float 8s ease-in-out infinite}
-.attr-card:nth-child(odd){animation-name:float-alt;animation-duration:10s}
-.attr-card:nth-child(3n){animation-name:float-slow;animation-duration:12s}
+.attr-card{border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow);margin-bottom:14px;background:var(--glass-bg);backdrop-filter:blur(16px) saturate(180%);-webkit-backdrop-filter:blur(16px) saturate(180%);border:1px solid rgba(255,255,255,.6)}
 .attr-card .attr-img{height:140px;background:linear-gradient(135deg,var(--c1),var(--c2));display:flex;align-items:center;justify-content:center;font-size:3rem;color:#fff;position:relative;overflow:hidden}
 .attr-card .attr-img::before{content:'';position:absolute;inset:0;background:rgba(0,0,0,.15);z-index:1;opacity:0;transition:opacity .3s}
 .attr-card .attr-img.has-image{background-size:cover;background-position:center}
@@ -172,8 +168,7 @@ h3{font-size:1rem;font-weight:600;color:var(--text)}
 
 /* ===== Budget ===== */
 .budget-summary{display:flex;gap:12px;margin-bottom:16px}
-.budget-box{flex:1;background:var(--glass-bg);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border:1px solid rgba(255,255,255,.6);border-radius:var(--radius);padding:14px;text-align:center;box-shadow:var(--shadow);animation:float 7s ease-in-out infinite}
-.budget-box:nth-child(odd){animation-name:float-alt;animation-duration:9s}
+.budget-box{flex:1;background:var(--glass-bg);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border:1px solid rgba(255,255,255,.6);border-radius:var(--radius);padding:14px;text-align:center;box-shadow:var(--shadow)}
 .budget-box .b-val{font-size:1.4rem;font-weight:700;color:var(--text)}
 .budget-box .b-label{font-size:.75rem;color:var(--sub);margin-top:2px}
 .expense-item{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:var(--glass-bg);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,.6);border-radius:8px;margin-bottom:6px;color:var(--text)}
@@ -185,8 +180,7 @@ h3{font-size:1rem;font-weight:600;color:var(--text)}
 .expense-cat.other{background:rgba(100,116,139,.1);color:var(--sub)}
 
 /* ===== Bookmark Card ===== */
-.bm-card{background:var(--glass-bg);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border:1px solid rgba(255,255,255,.6);border-radius:var(--radius);padding:14px;box-shadow:var(--shadow);margin-bottom:10px;position:relative;color:var(--text);animation:float 8s ease-in-out infinite}
-.bm-card:nth-child(odd){animation-name:float-alt}
+.bm-card{background:var(--glass-bg);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border:1px solid rgba(255,255,255,.6);border-radius:var(--radius);padding:14px;box-shadow:var(--shadow);margin-bottom:10px;position:relative;color:var(--text)}
 .bm-card .bm-del{position:absolute;top:10px;right:10px;color:var(--c4);font-size:1.1rem}
 
 /* ===== Hotel Links ===== */
@@ -228,7 +222,6 @@ h3{font-size:1rem;font-weight:600;color:var(--text)}
   transform:translateX(0);
   transition:transform .35s cubic-bezier(.25,.1,.25,1),opacity .35s cubic-bezier(.25,.1,.25,1),box-shadow .35s ease;
   box-shadow:0 8px 32px rgba(99,102,241,.08),0 2px 8px rgba(0,0,0,.04);
-  animation:float 8s ease-in-out infinite;
 }
 .step-card.slide-out-left{
   opacity:0;transform:translateX(-60px);
