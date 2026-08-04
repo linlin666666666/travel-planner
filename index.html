@@ -1088,7 +1088,8 @@ function navigateSubStep(dir) {
 
 function validateCurrentStep() {
   const c = formSubStep;
-  if (c===2){ const v=(document.getElementById('f_dest')?.value||'').trim(); if(!v){toast('请输入目的地');return false} setupData.dest=v; clearPreloadIfChanged(v); _preloadPromise=preloadAttractions(v); }
+  if (c===2){ const v=(document.getElementById('f_departure')?.value||'').trim(); if(!v){toast('请输入出发地');return false} setupData.departure=v; }
+  if (c===5){ const v=(document.getElementById('f_dest')?.value||'').trim(); if(!v){toast('请输入目的地');return false} if(v===setupData.departure){toast('目的地不能和出发地相同');return false} setupData.dest=v; clearPreloadIfChanged(v); _preloadPromise=preloadAttractions(v); }
   if (c===3){
     const f=document.getElementById('f_dateFrom')?.value,t=document.getElementById('f_dateTo')?.value;
     if(!f||!t){toast('请选择出行日期');return false}
@@ -1118,18 +1119,18 @@ function buildCard(step, card) {
       </div>
     `;
   } else if (step===2) {
-    // --- Destination ---
+    // --- Departure ---
     card.innerHTML = `
-      <div class="step-card-icon">🌍</div>
-      <div class="step-card-title">你要去哪里？</div>
-      <div class="step-card-sub">输入目的地城市名称</div>
+      <div class="step-card-icon">📍</div>
+      <div class="step-card-title">您从哪里出发？</div>
+      <div class="step-card-sub">输入出发城市名称</div>
       <div class="step-card-content">
-        <input type="text" id="f_dest" placeholder="如：成都" value="${setupData.dest||''}" style="font-size:1.1rem;text-align:center">
-        <div class="dest-quick">${HOT_DESTINATIONS.map(d=>`<span class="dest-quick-item" onclick="pickDest('${d}')">${d}</span>`).join('')}</div>
+        <input type="text" id="f_departure" placeholder="如：北京" value="${setupData.departure||''}" style="font-size:1.1rem;text-align:center">
+        <div class="dest-quick">${HOT_DEPARTURES.map(d=>`<span class="dest-quick-item" onclick="pickDeparture('${d}')">${d}</span>`).join('')}</div>
       </div>
     `;
     setTimeout(()=>{
-      const inp = document.getElementById('f_dest');
+      const inp = document.getElementById('f_departure');
       if(inp) inp.addEventListener('keydown',e=>{ if(e.key==='Enter') navigateSubStep(1); });
     },50);
   } else if (step===3) {
@@ -1160,19 +1161,19 @@ function buildCard(step, card) {
       <div class="step-card-content"><div class="radio-group" id="rg_transport">${opts.map(o=>`<div class="radio-item${setupData.transport===o.v?' selected':''}" data-v="${o.v}" onclick="pickRadio('transport','${o.v}',this)">${o.icon} ${o.v.slice(3)}<br><small style="font-size:.7rem;color:inherit;opacity:.7">${o.desc}</small></div>`).join('')}</div></div>
     `;
   } else if (step===5) {
-    // --- Departure city ---
+    // --- Destination ---
     card.innerHTML = `
-      <div class="step-card-icon">📍</div>
-      <div class="step-card-title">您从哪里出发？</div>
-      <div class="step-card-sub">输入出发城市名称</div>
+      <div class="step-card-icon">🌍</div>
+      <div class="step-card-title">你要去哪里？</div>
+      <div class="step-card-sub">输入目的地城市名称</div>
       <div class="step-card-content">
-        <input type="text" id="f_departure" placeholder="如：北京" value="${setupData.departure||''}" style="font-size:1.1rem;text-align:center">
-        <div class="dest-quick">${HOT_DEPARTURES.map(d=>`<span class="dest-quick-item" onclick="pickDeparture('${d}')">${d}</span>`).join('')}</div>
-        ${setupData.dest?`<div class="hint" style="text-align:center;margin-top:8px">目的地：${setupData.dest}</div>`:''}
+        <input type="text" id="f_dest" placeholder="如：成都" value="${setupData.dest||''}" style="font-size:1.1rem;text-align:center">
+        <div class="dest-quick">${HOT_DESTINATIONS.map(d=>`<span class="dest-quick-item" onclick="pickDest('${d}')">${d}</span>`).join('')}</div>
+        ${setupData.departure?`<div class="hint" style="text-align:center;margin-top:8px">出发地：${setupData.departure}</div>`:''}
       </div>
     `;
     setTimeout(()=>{
-      const inp = document.getElementById('f_departure');
+      const inp = document.getElementById('f_dest');
       if(inp) inp.addEventListener('keydown',e=>{ if(e.key==='Enter') navigateSubStep(1); });
     },50);
   } else if (step===6) {
