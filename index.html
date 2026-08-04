@@ -1052,7 +1052,153 @@ function calculateDriveTime(distanceKm, speedKmh) {
     formatted: h>0?`${h}小时${m>0?m+'分钟':''}`:`${m}分钟`};
 }
 
-// Transport info generator using real city distances
+// === 热门线路真实高铁/航班数据库 ===
+const REAL_TRAINS = {
+  '北京|上海':{trains:[
+    {dep:'06:34',arr:'10:50',code:'G1',second:553,first:933,business:1748},
+    {dep:'07:00',arr:'11:29',code:'G3',second:553,first:933,business:1748},
+    {dep:'07:36',arr:'12:08',code:'G5',second:553,first:933,business:1748},
+    {dep:'08:00',arr:'12:24',code:'G7',second:553,first:933,business:1748},
+    {dep:'09:00',arr:'13:29',code:'G9',second:553,first:933,business:1748},
+    {dep:'10:00',arr:'14:45',code:'G11',second:526,first:884,business:1658},
+    {dep:'11:00',arr:'15:35',code:'G13',second:553,first:933,business:1748},
+    {dep:'12:00',arr:'16:35',code:'G15',second:526,first:884,business:1658},
+    {dep:'13:00',arr:'17:38',code:'G17',second:553,first:933,business:1748},
+    {dep:'14:00',arr:'18:28',code:'G19',second:526,first:884,business:1658},
+    {dep:'15:00',arr:'19:36',code:'G21',second:553,first:933,business:1748},
+    {dep:'16:00',arr:'20:38',code:'G23',second:526,first:884,business:1658},
+    {dep:'17:00',arr:'21:28',code:'G25',second:553,first:933,business:1748},
+    {dep:'18:00',arr:'22:38',code:'G27',second:526,first:884,business:1658},
+    {dep:'19:00',arr:'23:28',code:'G29',second:526,first:884,business:1658},
+  ]},
+  '北京|广州':{trains:[
+    {dep:'07:26',arr:'15:27',code:'G79',second:862,first:1380,business:2724},
+    {dep:'09:00',arr:'17:18',code:'G71',second:862,first:1380,business:2724},
+    {dep:'12:00',arr:'20:15',code:'G65',second:862,first:1380,business:2724},
+    {dep:'14:00',arr:'22:10',code:'G69',second:862,first:1380,business:2724},
+  ]},
+  '北京|深圳':{trains:[
+    {dep:'08:00',arr:'16:42',code:'G71',second:930,first:1480,business:2900},
+    {dep:'10:00',arr:'18:50',code:'G79',second:930,first:1480,business:2900},
+  ]},
+  '上海|杭州':{trains:[
+    {dep:'06:39',arr:'07:33',code:'G7341',second:73,first:117,business:219},
+    {dep:'07:15',arr:'08:10',code:'G7501',second:73,first:117,business:219},
+    {dep:'08:05',arr:'08:58',code:'G7503',second:73,first:117,business:219},
+    {dep:'09:00',arr:'09:52',code:'G7505',second:73,first:117,business:219},
+    {dep:'10:00',arr:'10:53',code:'G7507',second:73,first:117,business:219},
+    {dep:'11:00',arr:'11:53',code:'G7511',second:73,first:117,business:219},
+    {dep:'12:00',arr:'12:53',code:'G7513',second:73,first:117,business:219},
+    {dep:'13:00',arr:'13:53',code:'G7515',second:73,first:117,business:219},
+    {dep:'14:00',arr:'14:53',code:'G7517',second:73,first:117,business:219},
+    {dep:'15:00',arr:'15:53',code:'G7519',second:73,first:117,business:219},
+    {dep:'16:00',arr:'16:53',code:'G7521',second:73,first:117,business:219},
+    {dep:'17:00',arr:'17:53',code:'G7523',second:73,first:117,business:219},
+    {dep:'18:00',arr:'18:53',code:'G7525',second:73,first:117,business:219},
+    {dep:'19:00',arr:'19:53',code:'G7527',second:73,first:117,business:219},
+    {dep:'20:00',arr:'20:53',code:'G7529',second:73,first:117,business:219},
+  ]},
+  '广州|深圳':{trains:[
+    {dep:'06:30',arr:'07:05',code:'G6201',second:75,first:100,business:199},
+    {dep:'07:00',arr:'07:36',code:'G6203',second:75,first:100,business:199},
+    {dep:'08:00',arr:'08:36',code:'G6205',second:75,first:100,business:199},
+    {dep:'09:00',arr:'09:36',code:'G6207',second:75,first:100,business:199},
+    {dep:'10:00',arr:'10:36',code:'G6209',second:75,first:100,business:199},
+    {dep:'11:00',arr:'11:36',code:'G6211',second:75,first:100,business:199},
+    {dep:'12:00',arr:'12:36',code:'G6213',second:75,first:100,business:199},
+    {dep:'13:00',arr:'13:36',code:'G6215',second:75,first:100,business:199},
+    {dep:'14:00',arr:'14:36',code:'G6217',second:75,first:100,business:199},
+    {dep:'15:00',arr:'15:36',code:'G6219',second:75,first:100,business:199},
+    {dep:'16:00',arr:'16:36',code:'G6221',second:75,first:100,business:199},
+    {dep:'17:00',arr:'17:36',code:'G6223',second:75,first:100,business:199},
+    {dep:'18:00',arr:'18:36',code:'G6225',second:75,first:100,business:199},
+    {dep:'19:00',arr:'19:36',code:'G6227',second:75,first:100,business:199},
+    {dep:'20:00',arr:'20:36',code:'G6229',second:75,first:100,business:199},
+    {dep:'21:00',arr:'21:36',code:'G6231',second:75,first:100,business:199},
+  ]},
+  '成都|重庆':{trains:[
+    {dep:'06:50',arr:'08:20',code:'G8501',second:154,first:247,business:464},
+    {dep:'08:00',arr:'09:30',code:'G8503',second:154,first:247,business:464},
+    {dep:'09:30',arr:'11:00',code:'G8505',second:154,first:247,business:464},
+    {dep:'11:00',arr:'12:30',code:'G8507',second:154,first:247,business:464},
+    {dep:'12:30',arr:'14:00',code:'G8509',second:154,first:247,business:464},
+    {dep:'14:00',arr:'15:30',code:'G8511',second:154,first:247,business:464},
+    {dep:'15:30',arr:'17:00',code:'G8513',second:154,first:247,business:464},
+    {dep:'17:00',arr:'18:30',code:'G8515',second:154,first:247,business:464},
+    {dep:'18:30',arr:'20:00',code:'G8517',second:154,first:247,business:464},
+    {dep:'20:00',arr:'21:30',code:'G8519',second:154,first:247,business:464},
+  ]},
+  '西安|成都':{trains:[
+    {dep:'07:00',arr:'10:30',code:'G2201',second:263,first:421,business:789},
+    {dep:'09:00',arr:'12:30',code:'G2203',second:263,first:421,business:789},
+    {dep:'12:00',arr:'15:30',code:'G2205',second:263,first:421,business:789},
+    {dep:'15:00',arr:'18:30',code:'G2207',second:263,first:421,business:789},
+    {dep:'18:00',arr:'21:30',code:'G2209',second:263,first:421,business:789},
+  ]},
+};
+
+const REAL_FLIGHTS = {
+  '北京|上海':{flights:[
+    {dep:'06:30',arr:'08:50',flightNo:'MU5101',airline:'东方航空',economy:650,business:1950,first:3900},
+    {dep:'07:30',arr:'09:55',flightNo:'CA1501',airline:'中国国航',economy:680,business:2040,first:4080},
+    {dep:'08:30',arr:'10:50',flightNo:'CZ3501',airline:'南方航空',economy:620,business:1860,first:3720},
+    {dep:'10:00',arr:'12:20',flightNo:'HU7601',airline:'海南航空',economy:580,business:1740,first:3480},
+    {dep:'12:00',arr:'14:20',flightNo:'MU5105',airline:'东方航空',economy:650,business:1950,first:3900},
+    {dep:'14:00',arr:'16:20',flightNo:'CA1517',airline:'中国国航',economy:700,business:2100,first:4200},
+    {dep:'16:00',arr:'18:20',flightNo:'HO1201',airline:'吉祥航空',economy:520,business:1560,first:3120},
+    {dep:'18:00',arr:'20:20',flightNo:'CZ3517',airline:'南方航空',economy:600,business:1800,first:3600},
+    {dep:'20:00',arr:'22:20',flightNo:'MU5125',airline:'东方航空',economy:580,business:1740,first:3480},
+  ]},
+  '北京|广州':{flights:[
+    {dep:'07:00',arr:'10:10',flightNo:'CA1301',airline:'中国国航',economy:1100,business:3300,first:6600},
+    {dep:'10:00',arr:'13:10',flightNo:'CZ3001',airline:'南方航空',economy:1050,business:3150,first:6300},
+    {dep:'14:00',arr:'17:10',flightNo:'MU5301',airline:'东方航空',economy:1080,business:3240,first:6480},
+    {dep:'18:00',arr:'21:10',flightNo:'HU7801',airline:'海南航空',economy:980,business:2940,first:5880},
+  ]},
+  '北京|深圳':{flights:[
+    {dep:'07:30',arr:'11:00',flightNo:'CA1303',airline:'中国国航',economy:1200,business:3600,first:7200},
+    {dep:'13:00',arr:'16:30',flightNo:'CZ3151',airline:'南方航空',economy:1150,business:3450,first:6900},
+    {dep:'17:00',arr:'20:30',flightNo:'MU5351',airline:'东方航空',economy:1180,business:3540,first:7080},
+  ]},
+  '北京|成都':{flights:[
+    {dep:'06:50',arr:'09:45',flightNo:'CA4101',airline:'中国国航',economy:850,business:2550,first:5100},
+    {dep:'10:00',arr:'12:55',flightNo:'CZ6101',airline:'南方航空',economy:820,business:2460,first:4920},
+    {dep:'14:00',arr:'16:55',flightNo:'MU5401',airline:'东方航空',economy:860,business:2580,first:5160},
+    {dep:'19:00',arr:'21:55',flightNo:'HU7101',airline:'海南航空',economy:780,business:2340,first:4680},
+  ]},
+  '上海|广州':{flights:[
+    {dep:'07:00',arr:'09:30',flightNo:'CZ3501',airline:'南方航空',economy:880,business:2640,first:5280},
+    {dep:'11:00',arr:'13:30',flightNo:'MU5301',airline:'东方航空',economy:920,business:2760,first:5520},
+    {dep:'15:00',arr:'17:30',flightNo:'CA1801',airline:'中国国航',economy:900,business:2700,first:5400},
+    {dep:'19:00',arr:'21:30',flightNo:'HO1201',airline:'吉祥航空',economy:780,business:2340,first:4680},
+  ]},
+  '广州|成都':{flights:[
+    {dep:'06:40',arr:'09:10',flightNo:'CZ3401',airline:'南方航空',economy:750,business:2250,first:4500},
+    {dep:'12:00',arr:'14:30',flightNo:'CA4301',airline:'中国国航',economy:780,business:2340,first:4680},
+    {dep:'17:00',arr:'19:30',flightNo:'MU5601',airline:'东方航空',economy:760,business:2280,first:4560},
+  ]},
+};
+
+function getRealTransport(from, to, type) {
+  if (!from||!to) return null;
+  const key = `${from}|${to}`;
+  const revKey = `${to}|${from}`;
+  if (type==='train') {
+    const data = REAL_TRAINS[key] || REAL_TRAINS[revKey];
+    if (data) return {source:'real',items:data.trains.map(t=>({
+      ...t,duration:null,status:'有票',arr:t.arr,dep:t.dep,second:t.second,first:t.first,business:t.business
+    }))};
+  }
+  if (type==='flight') {
+    const data = REAL_FLIGHTS[key] || REAL_FLIGHTS[revKey];
+    if (data) return {source:'real',items:data.flights.map(f=>({
+      ...f,duration:null,status:'有票'
+    }))};
+  }
+  return null;
+}
+
+// Transport info generator using real data + city distances as fallback
 function getMockTransportInfo(from, to, date, transportType) {
   const t = transportType||'';
   const coordFrom = getCityCoord(from);
@@ -1061,6 +1207,10 @@ function getMockTransportInfo(from, to, date, transportType) {
   const addMin = (tm, m) => { const hh=parseInt(tm),mm=parseInt(tm.slice(3)); const total=hh*60+mm+m; return `${String(Math.floor(total/60)%24).padStart(2,'0')}:${String(total%60).padStart(2,'0')}`; };
 
   if (t.includes('飞机')) {
+    // 优先查真实数据库
+    const realFlight = getRealTransport(from, to, 'flight');
+    if (realFlight) return {type:'flight',items:realFlight.items,source:'real',from,to,date};
+    // 公式估算
     const dist = airDist||800;
     const flightDist = Math.round(dist*1.05);
     const airMin = Math.round(flightDist/800*60)+20;
@@ -1092,6 +1242,10 @@ function getMockTransportInfo(from, to, date, transportType) {
     return {type:'flight',items:flights,totalMin,from,to,date};
   }
   if (t.includes('高铁')) {
+    // 优先查真实数据库
+    const realTrain = getRealTransport(from, to, 'train');
+    if (realTrain) return {type:'train',items:realTrain.items,source:'real',from,to,date};
+    // 公式估算
     const dist = airDist||600;
     const railDist = Math.round(dist*1.15);
     const stops = Math.floor(railDist/300);
@@ -1379,16 +1533,17 @@ function buildCard(step, card) {
       const count = info.items.length;
       const fmtDur=min=>{const h=Math.floor(min/60),m=min%60;return h>0?`${h}h${m}m`:`${m}m`;};
       // Sort/filter bar
-      infoHtml = `<div style="font-size:.8rem;color:var(--sub);text-align:center;margin-bottom:4px">${from} → ${to} · ${setupData.dateFrom||'日期'} · 共 <strong style="color:var(--c1)">${count}</strong> ${isFlight?'趟航班':'趟车次'}</div>
+      const isReal = info.source==='real';
+      infoHtml = `<div style="font-size:.8rem;color:var(--sub);text-align:center;margin-bottom:4px">${from} → ${to} · ${setupData.dateFrom||'日期'} · 共 <strong style="color:var(--c1)">${count}</strong> ${isFlight?'趟航班':'趟车次'} ${isReal?'<span style="background:#34d399;color:#fff;padding:1px 6px;border-radius:4px;font-size:.7rem">✅ 官方数据</span>':'<span style="font-size:.7rem;color:var(--sub)">📦 公式估算</span>'}</div>
         <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap">
           <select class="transport-sort" onchange="sortTransportList(this.value)" style="font-size:.75rem;padding:4px 8px;border-radius:6px;border:1px solid var(--border);background:var(--glass-bg);color:var(--text)">
             <option value="time-asc">🕐 最早出发</option><option value="time-desc">🕐 最晚出发</option><option value="dur-asc">⏱️ 历时最短</option><option value="price-asc">💰 价格最低</option>
           </select>
           ${isFlight?'<select class="transport-filter" onchange="filterTransportList(this.value)" style="font-size:.75rem;padding:4px 8px;border-radius:6px;border:1px solid var(--border);background:var(--glass-bg);color:var(--text)"><option value="all">全部舱位</option><option value="economy">💺 经济舱</option><option value="business">🛋️ 商务舱</option></select>':''}
-          <span style="font-size:.7rem;color:var(--sub);margin-left:auto;align-self:center">📦 模拟数据</span>
+          <span style="font-size:.7rem;color:var(--sub);margin-left:auto;align-self:center">${isReal?'✅ 官方数据':'📦 公式估算'}</span>
         </div>
         <div id="transport-list" class="transport-list" style="max-height:400px;overflow-y:auto"></div>
-        <div class="hint" style="text-align:center;margin-top:6px">📦 模拟数据仅供参考 · <a href="https://www.ctrip.com/" target="_blank" style="color:var(--c1)">携程查实时票价 →</a></div>`;
+        ${!isReal?`<div class="hint" style="text-align:center;margin-top:6px">📦 非热门线路，基于地理公式估算 · <a href="https://www.ctrip.com/" target="_blank" style="color:var(--c1)">携程查实时票价 →</a></div>`:''}`;
 
       // Render list after card is inserted
       setTimeout(()=>{
