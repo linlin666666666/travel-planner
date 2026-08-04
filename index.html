@@ -389,17 +389,8 @@ function fetchWithTimeout(url, opts={}, ms=8000) {
   return fetch(url, {...opts, signal:ctrl.signal}).finally(() => clearTimeout(timer));
 }
 
-async function geocode(city) {
-  // Try Nominatim first
-  try {
-    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(city)}&limit=1&accept-language=zh`;
-    const r = await fetchWithTimeout(url, {headers:{'User-Agent':'TravelPlanner/1.0'}});
-    const d = await r.json();
-    if (d.length) return {lat:parseFloat(d[0].lat),lon:parseFloat(d[0].lon),display_name:d[0].display_name};
-  } catch(e) { console.log('Nominatim failed:', e.message); }
-
-  // Fallback: built-in city coordinates
-  const cityDB = {
+// Built-in city coordinates (shared across geocode and transport info)
+const cityDB = {
     '北京':{lat:39.9,lon:116.4,dn:'北京, 中国'},
     '上海':{lat:31.2,lon:121.5,dn:'上海, 中国'},
     '广州':{lat:23.1,lon:113.3,dn:'广州, 中国'},
@@ -493,6 +484,16 @@ async function geocode(city) {
     '巴黎':{lat:48.9,lon:2.35,dn:'巴黎, 法国'},
     '伦敦':{lat:51.5,lon:-0.13,dn:'伦敦, 英国'},
   };
+
+async function geocode(city) {
+  // Try Nominatim first
+  try {
+    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(city)}&limit=1&accept-language=zh`;
+    const r = await fetchWithTimeout(url, {headers:{'User-Agent':'TravelPlanner/1.0'}});
+    const d = await r.json();
+    if (d.length) return {lat:parseFloat(d[0].lat),lon:parseFloat(d[0].lon),display_name:d[0].display_name};
+  } catch(e) { console.log('Nominatim failed:', e.message); }
+  // Fallback: built-in city coordinates
   const key = Object.keys(cityDB).find(k => city.includes(k) || k.includes(city));
   if (key) return cityDB[key];
   throw new Error('未找到该城市，请尝试输入更具体的地名');
