@@ -235,7 +235,7 @@ h3{font-size:1rem;font-weight:600}
 
 /* === 测试版本时间戳 - 开始 === */
 /* 临时功能，上线前删除 */
-.build-timestamp{position:fixed;top:8px;left:8px;z-index:9999;pointer-events:none;background:rgba(0,0,0,.55);color:#fff;font-size:11px;padding:3px 8px;border-radius:4px;font-family:monospace;line-height:1.4}
+.build-timestamp{position:fixed;top:8px;left:8px;z-index:9999;pointer-events:none;background:rgba(0,0,0,.65);color:#fff;font-size:11px;padding:4px 10px;border-radius:6px;font-family:monospace;line-height:1.4}
 /* === 测试版本时间戳 - 结束 === */
 </style>
 </head>
@@ -1662,12 +1662,23 @@ function renderBookmarks(body) {
 // ============================================================
 /* === 测试版本时间戳 - 开始 === */
 // 临时功能，上线前删除
-const BUILD_TIME = '2026.08.04 17:45';
 (function setupBuildStamp() {
+  function fmt(n) { return String(n).padStart(2,'0'); }
+  const d = new Date(document.lastModified);
+  const time = isNaN(d.getTime()) ? '未知'
+    : `${d.getFullYear()}.${fmt(d.getMonth()+1)}.${fmt(d.getDate())} ${fmt(d.getHours())}:${fmt(d.getMinutes())}`;
   const stamp = document.createElement('div');
   stamp.className = 'build-timestamp';
-  stamp.textContent = 'v' + BUILD_TIME;
+  stamp.textContent = 'v' + time;
+  stamp.id = 'build-stamp';
   document.body.appendChild(stamp);
+  const toggle = () => {
+    const main = document.getElementById('main-screen');
+    stamp.style.display = main && main.classList.contains('active') ? '' : 'none';
+  };
+  const mainEl = document.getElementById('main-screen');
+  if (mainEl) { new MutationObserver(toggle).observe(mainEl,{attributes:true,attributeFilter:['class']}); }
+  toggle();
 })();
 /* === 测试版本时间戳 - 结束 === */
 
