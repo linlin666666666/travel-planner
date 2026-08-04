@@ -96,7 +96,12 @@ h3{font-size:1rem;font-weight:600}
 
 /* ===== Attraction Card ===== */
 .attr-card{border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow);margin-bottom:14px;background:var(--card)}
-.attr-card .attr-img{height:140px;background:linear-gradient(135deg,var(--c1),var(--c2));display:flex;align-items:center;justify-content:center;font-size:3rem;color:#fff}
+.attr-card .attr-img{height:140px;background:linear-gradient(135deg,var(--c1),var(--c2));display:flex;align-items:center;justify-content:center;font-size:3rem;color:#fff;position:relative;overflow:hidden}
+.attr-card .attr-img::before{content:'';position:absolute;inset:0;background:rgba(0,0,0,.2);z-index:1;opacity:0;transition:opacity .3s}
+.attr-card .attr-img.has-image{background-size:cover;background-position:center}
+.attr-card .attr-img.has-image::before{opacity:1}
+.attr-card .attr-img span{position:relative;z-index:2;transition:opacity .3s}
+.attr-card .attr-img.has-image span{opacity:0}
 .attr-card .attr-body{padding:14px}
 .attr-card .attr-type{display:inline-block;padding:3px 10px;background:rgba(42,157,143,.12);color:var(--c1);border-radius:12px;font-size:.75rem;font-weight:600;margin-bottom:6px}
 .attr-card .attr-name{font-size:1.05rem;font-weight:700;margin-bottom:4px}
@@ -840,6 +845,39 @@ async function fetchWikiSummary(title, lang='zh') {
   return null;
 }
 
+/* === 景点图片加载 - 开始 === */
+async function fetchAttractionImage(name, type) {
+  // 优先从 Wikipedia 获取图片
+  try {
+    const url = `https://zh.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(name)}`;
+    const r = await fetchWithTimeout(url, {}, 6000);
+    if (r.ok) {
+      const d = await r.json();
+      if (d.thumbnail && d.thumbnail.source) return d.thumbnail.source;
+      if (d.originalimage && d.originalimage.source) return d.originalimage.source;
+    }
+  } catch(e) { /* 静默失败 */ }
+  // 再从英文 Wikipedia 试一次
+  try {
+    const url = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(name)}`;
+    const r = await fetchWithTimeout(url, {}, 6000);
+    if (r.ok) {
+      const d = await r.json();
+      if (d.thumbnail && d.thumbnail.source) return d.thumbnail.source;
+    }
+  } catch(e) { /* 静默失败 */ }
+  return null;
+}
+
+function applyAttractionImage(cardEl, imgDiv, imageUrl) {
+  if (!imageUrl) return;
+  imgDiv.style.backgroundImage = `url(${imageUrl})`;
+  imgDiv.style.backgroundSize = 'cover';
+  imgDiv.style.backgroundPosition = 'center';
+  imgDiv.classList.add('has-image');
+}
+/* === 景点图片加载 - 结束 === */
+
 async function fetchWeather(lat, lon, startDate, endDate) {
   try {
     const days = Math.min(Math.ceil((new Date(endDate)-new Date(startDate))/86400000)+1, 16);
@@ -1334,8 +1372,11 @@ function renderAttractionsStep(body, footer) {
       }
       container.innerHTML = srcBadge;
       result.data.forEach((item,i) => {
+        const emoji = item.type==='公园'?'🌳':item.type==='博物馆'?'🏛️':item.type==='城堡'?'🏰':item.type==='寺庙'?'🛕':item.type==='观景台'?'🏔️':'🏯';
+        const imgDiv = el('div',{className:'attr-img'});
+        imgDiv.appendChild(el('span',{},emoji));
         const c = el('div',{className:'attr-card'});
-        c.appendChild(el('div',{className:'attr-img'}, item.type==='公园'?'🌳':item.type==='博物馆'?'🏛️':item.type==='城堡'?'🏰':item.type==='寺庙'?'🛕':item.type==='观景台'?'🏔️':'🏯'));
+        c.appendChild(imgDiv);
         const bd = el('div',{className:'attr-body'});
         bd.appendChild(el('span',{className:'attr-type'}, item.type));
         bd.appendChild(el('div',{className:'attr-name'}, item.name));
@@ -1354,6 +1395,10 @@ function renderAttractionsStep(body, footer) {
         if (state.picked.find(p=>p.id===item.id)) { go.textContent='✅ 已选'; go.className='btn btn-success btn-sm'; }
         acts.appendChild(skip); acts.appendChild(go); bd.appendChild(acts);
         c.appendChild(bd); container.appendChild(c);
+        // 异步加载景点图片
+        fetchAttractionImage(item.name).then(imgUrl=>{
+          applyAttractionImage(c, imgDiv, imgUrl);
+        });
       });
     } catch(e) {
       $('#attrs-loading').innerHTML = `<p style="text-align:center;color:var(--c4)">加载失败: ${e.message}</p>`;
