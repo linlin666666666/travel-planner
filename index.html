@@ -1058,6 +1058,7 @@ function getMockTransportInfo(from, to, date, transportType) {
   const coordFrom = getCityCoord(from);
   const coordTo = getCityCoord(to);
   const airDist = (coordFrom&&coordTo) ? Math.round(haversineKm(coordFrom.lat,coordFrom.lon,coordTo.lat,coordTo.lon)) : 0;
+  const addMin = (tm, m) => { const hh=parseInt(tm),mm=parseInt(tm.slice(3)); const total=hh*60+mm+m; return `${String(Math.floor(total/60)%24).padStart(2,'0')}:${String(total%60).padStart(2,'0')}`; };
 
   if (t.includes('飞机')) {
     const dist = airDist||800;
@@ -1072,22 +1073,18 @@ function getMockTransportInfo(from, to, date, transportType) {
       {name:'中国国航',prefix:'CA',base:100},{name:'海南航空',prefix:'HU',base:700},
       {name:'春秋航空',prefix:'9C',base:850},{name:'吉祥航空',prefix:'HO',base:110}
     ];
-    function addMin(t,m){const hh=parseInt(t),mm=parseInt(t.slice(3));const total=hh*60+mm+m;return `${String(Math.floor(total/60)%24).padStart(2,'0')}:${String(total%60).padStart(2,'0')}`;}
-    // 生成全天航班：6:00-22:00，每1.5-2.5小时一班
     const flights = [];
-    const dayStart = 360; // 6:00 in minutes
-    const dayEnd = 1320;  // 22:00
+    const dayStart = 360, dayEnd = 1320;
     const interval = dist<500?90:dist<1000?110:140;
-    const eat = economy;
-    const biz = Math.round(eat*2.5); const first = Math.round(eat*5);
-    for (let t=dayStart; t<=dayEnd; t+=interval+Math.floor(Math.random()*40)) {
-      const depH=Math.floor(t/60),depM=t%60;
+    const eat = economy, biz = Math.round(eat*2.5), fst = Math.round(eat*5);
+    for (let tm=dayStart; tm<=dayEnd; tm+=interval+Math.floor(Math.random()*40)) {
+      const depH=Math.floor(tm/60),depM=tm%60;
       const dep = `${String(depH).padStart(2,'0')}:${String(depM).padStart(2,'0')}`;
       const arr = addMin(dep,totalMin);
       const al=airlines[flights.length%airlines.length];
       const priceVar = 0.8 + Math.random()*0.5;
       flights.push({dep,arr,duration:totalMin,
-        economy:Math.round(eat*priceVar/10)*10,business:Math.round(biz*priceVar/10)*10,first:Math.round(first*priceVar/10)*10,
+        economy:Math.round(eat*priceVar/10)*10,business:Math.round(biz*priceVar/10)*10,first:Math.round(fst*priceVar/10)*10,
         airline:al.name,flightNo:al.prefix+(al.base+Math.floor(dist*0.5)%900+100),
         status:Math.random()>0.15?'有票':(Math.random()>0.5?'仅剩少量':'候补')});
     }
@@ -1103,15 +1100,12 @@ function getMockTransportInfo(from, to, date, transportType) {
     const second = Math.round(railDist*rate/5)*5;
     const first = Math.round(second*1.6/5)*5;
     const business = Math.round(second*3.2/5)*5;
-    function addMin(t,m){const hh=parseInt(t),mm=parseInt(t.slice(3));const total=hh*60+mm+m;return `${String(Math.floor(total/60)%24).padStart(2,'0')}:${String(total%60).padStart(2,'0')}`;}
-    // 生成全天高铁：6:00-22:00，每25-50分钟一班
     const trains = [];
-    const dayStart = 360;
-    const dayEnd = 1320;
+    const dayStart = 360, dayEnd = 1320;
     const interval = dist<200?25:dist<500?35:50;
     const types = dist>500?['G']:['G','G','D'];
-    for (let t=dayStart; t<=dayEnd; t+=interval+Math.floor(Math.random()*15)) {
-      const depH=Math.floor(t/60),depM=t%60;
+    for (let tm=dayStart; tm<=dayEnd; tm+=interval+Math.floor(Math.random()*15)) {
+      const depH=Math.floor(tm/60),depM=tm%60;
       const dep = `${String(depH).padStart(2,'0')}:${String(depM).padStart(2,'0')}`;
       const arr = addMin(dep,railMin);
       const typ = types[Math.floor(Math.random()*types.length)];
@@ -1125,7 +1119,6 @@ function getMockTransportInfo(from, to, date, transportType) {
     }
     trains.sort((a,b)=>a.dep.localeCompare(b.dep));
     return {type:'train',items:trains,railMin,from,to,date};
-  }
   }
   if (t.includes('自驾')) {
     /* === 自驾路线计算 - 开始 === */
@@ -1165,8 +1158,8 @@ function getMockTransportInfo(from, to, date, transportType) {
     const routeNum = Math.floor(airD*1.7)%999+1;
 
     // 格式化函数
-    function fmtNum(n){return n.toLocaleString('zh-CN')}
-    function fmtTime(h,m){return h>0?`${h}小时${m>0?m+'分钟':''}`:`${m}分钟`}
+    const fmtNum=n=>n.toLocaleString('zh-CN');
+    const fmtTime=(h,m)=>h>0?`${h}小时${m>0?m+'分钟':''}`:`${m}分钟`;
 
     // 第一层：尝试地图 API（预留接口，失败静默降级）
     // TODO: 接入高德/腾讯驾车路线API
@@ -1384,7 +1377,7 @@ function buildCard(step, card) {
     if (info.type==='flight'||info.type==='train') {
       const isFlight = info.type==='flight';
       const count = info.items.length;
-      function fmtDur(min){const h=Math.floor(min/60),m=min%60;return h>0?`${h}h${m}m`:`${m}m`;}
+      const fmtDur=min=>{const h=Math.floor(min/60),m=min%60;return h>0?`${h}h${m}m`:`${m}m`;};
       // Sort/filter bar
       infoHtml = `<div style="font-size:.8rem;color:var(--sub);text-align:center;margin-bottom:4px">${from} → ${to} · ${setupData.dateFrom||'日期'} · 共 <strong style="color:var(--c1)">${count}</strong> ${isFlight?'趟航班':'趟车次'}</div>
         <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap">
@@ -1401,7 +1394,7 @@ function buildCard(step, card) {
       setTimeout(()=>{
         const listEl = document.getElementById('transport-list');
         if (!listEl) return;
-        function renderItems(items) {
+        const renderItems = (items) => {
           listEl.innerHTML = '';
           items.forEach((item,idx) => {
             const row = document.createElement('div');
