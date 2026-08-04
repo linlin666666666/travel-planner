@@ -892,6 +892,29 @@ let attractionsData = [];
 let weatherData = null;
 let tripDays = 0;
 
+/* === 后台预加载景点 - 开始 === */
+let _preloadCity = '';         // 正在预加载的城市名
+let _preloadResult = null;     // 预加载结果 {source,data}|null
+let _preloadPromise = null;    // 预加载中的 Promise
+async function preloadAttractions(city) {
+  if (!city||city===_preloadCity) return;
+  // 目的地变了，清空旧结果
+  _preloadCity = city;
+  _preloadResult = null;
+  try {
+    const geo = await geocode(city);
+    const res = await fetchAttractions(city, geo.lat, geo.lon);
+    if (city === _preloadCity) { _preloadResult = res; }
+  } catch(e) {
+    // 预加载失败不弹错误，renderAttractionsStep 有降级逻辑
+    console.log('预加载景点失败:', e.message);
+  }
+}
+function clearPreloadIfChanged(city) {
+  if (city && city !== _preloadCity) { _preloadCity = ''; _preloadResult = null; }
+}
+/* === 后台预加载景点 - 结束 === */
+
 // Hot destinations for quick pick
 const HOT_DESTINATIONS = ['北京','上海','成都','杭州','三亚','厦门','西安','重庆','广州','丽江','大理','桂林'];
 
@@ -993,7 +1016,7 @@ function navigateSubStep(dir) {
 
 function validateCurrentStep() {
   const c = formSubStep;
-  if (c===2){ const v=(document.getElementById('f_dest')?.value||'').trim(); if(!v){toast('请输入目的地');return false} setupData.dest=v; }
+  if (c===2){ const v=(document.getElementById('f_dest')?.value||'').trim(); if(!v){toast('请输入目的地');return false} setupData.dest=v; clearPreloadIfChanged(v); _preloadPromise=preloadAttractions(v); }
   if (c===3){
     const f=document.getElementById('f_dateFrom')?.value,t=document.getElementById('f_dateTo')?.value;
     if(!f||!t){toast('请选择出行日期');return false}
@@ -1160,6 +1183,7 @@ function pickDest(city) {
   setupData.dest = city;
   const inp = document.getElementById('f_dest');
   if (inp) inp.value = city;
+  /* 后台预加载景点 */ _preloadPromise = preloadAttractions(city);
   setTimeout(()=>navigateSubStep(1), 200);
 }
 
@@ -1273,9 +1297,31 @@ function renderAttractionsStep(body, footer) {
   document.getElementById('step2-next').addEventListener('click', goStep3);
 
   (async () => {
+    /* === 后台预加载逻辑 === */
+    let result;
+    // 1. 用预加载结果
+    if (_preloadResult && _preloadCity === setupData.dest) {
+      result = _preloadResult;
+      console.log('使用预加载景点数据');
+    }
+    // 2. 预加载还在进行中 → 等待
+    else if (_preloadPromise && _preloadCity === setupData.dest) {
+      try { await _preloadPromise; } catch(e){}
+      if (_preloadResult) result = _preloadResult;
+    }
+    // 3. 没预加载或目的地变了 → 现场搜
+    if (!result) {
+      try {
+        if (!geoResult || _preloadCity !== setupData.dest) geoResult = await geocode(setupData.dest);
+        result = await fetchAttractions(setupData.dest, geoResult.lat, geoResult.lon);
+        _preloadResult = result; _preloadCity = setupData.dest;
+      } catch(e) {
+        result = {source:'error', data:[]};
+      }
+    }
+    /* === 预加载逻辑结束 === */
+
     try {
-      if (!geoResult) geoResult = await geocode(setupData.dest);
-      const result = await fetchAttractions(setupData.dest, geoResult.lat, geoResult.lon);
       attractionsData = result.data;
       const container = $('#attrs-container');
       $('#attrs-loading').style.display = 'none';
