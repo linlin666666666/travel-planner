@@ -235,8 +235,7 @@ h3{font-size:1rem;font-weight:600}
 
 /* === 测试版本时间戳 - 开始 === */
 /* 临时功能，上线前删除 */
-.build-timestamp{position:fixed;top:8px;left:8px;z-index:9999;pointer-events:none;background:rgba(0,0,0,.55);color:#fff;font-size:11px;padding:3px 8px;border-radius:4px;font-family:monospace;line-height:1.4;opacity:0;transition:opacity .3s}
-.build-timestamp.visible{opacity:1}
+.build-timestamp{position:fixed;top:8px;left:8px;z-index:9999;pointer-events:none;background:rgba(0,0,0,.55);color:#fff;font-size:11px;padding:3px 8px;border-radius:4px;font-family:monospace;line-height:1.4}
 /* === 测试版本时间戳 - 结束 === */
 </style>
 </head>
@@ -1669,7 +1668,6 @@ const BUILD_TIME = '2026.08.04 17:30';
   stamp.className = 'build-timestamp';
   stamp.textContent = 'v' + BUILD_TIME;
   document.body.appendChild(stamp);
-  stamp.classList.add('visible');
 })();
 /* === 测试版本时间戳 - 结束 === */
 
