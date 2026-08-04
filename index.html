@@ -177,15 +177,32 @@ h3{font-size:1rem;font-weight:600}
 
 /* ===== Step Card Animation ===== */
 .step-card-wrapper{position:relative;overflow:hidden;min-height:320px}
-.step-card{position:absolute;width:100%;padding:24px 20px;background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);transition:transform .35s cubic-bezier(.4,0,.2,1),opacity .35s cubic-bezier(.4,0,.2,1);opacity:0;pointer-events:none}
-.step-card.current{position:relative;opacity:1;pointer-events:auto;transform:translateX(0)}
-.step-card.enter-next{transform:translateX(60px);opacity:0}
-.step-card.enter-prev{transform:translateX(-60px);opacity:0}
-.step-card.leave-prev{transform:translateX(60px)}
-.step-card.leave-next{transform:translateX(-60px)}
-.step-progress{display:flex;align-items:center;gap:4px;margin-bottom:20px}
-.step-progress-bar{flex:1;height:3px;background:var(--border);border-radius:2px;overflow:hidden}
-.step-progress-fill{height:100%;background:var(--c1);transition:width .35s ease}
+.step-card{
+  position:absolute;width:100%;padding:24px 20px;background:var(--card);
+  border-radius:var(--radius);box-shadow:var(--shadow);
+  opacity:0;pointer-events:none;
+  transform:translateX(60px);
+  will-change:transform,opacity;
+}
+.step-card.current{
+  position:relative;opacity:1;pointer-events:auto;
+  transform:translateX(0);
+  transition:transform .35s cubic-bezier(.25,.1,.25,1),opacity .35s cubic-bezier(.25,.1,.25,1),box-shadow .35s ease;
+  box-shadow:0 4px 24px rgba(0,0,0,.12);
+}
+.step-card.current:hover{box-shadow:0 8px 32px rgba(0,0,0,.16)}
+.step-card.slide-out-left{
+  opacity:0;transform:translateX(-60px);
+  transition:transform .35s cubic-bezier(.25,.1,.25,1),opacity .35s cubic-bezier(.25,.1,.25,1);
+}
+.step-card.slide-out-right{
+  opacity:0;transform:translateX(60px);
+  transition:transform .35s cubic-bezier(.25,.1,.25,1),opacity .35s cubic-bezier(.25,.1,.25,1);
+}
+.step-progress{display:flex;align-items:center;gap:3px;margin-bottom:20px}
+.step-progress-seg{flex:1;height:4px;background:var(--border);border-radius:2px;transition:background .3s ease}
+.step-progress-seg.done{background:var(--c1)}
+.step-progress-seg.current{background:var(--c1);box-shadow:0 0 6px rgba(42,157,143,.5)}
 .step-progress-text{font-size:.72rem;color:var(--sub);font-weight:600;min-width:36px;text-align:right}
 .step-card-icon{font-size:2.5rem;text-align:center;margin-bottom:8px}
 .step-card-title{font-size:1.1rem;font-weight:700;text-align:center;margin-bottom:4px}
@@ -195,15 +212,26 @@ h3{font-size:1rem;font-weight:600}
 .dest-quick-item{padding:8px 14px;border-radius:20px;background:var(--bg);border:1px solid var(--border);font-size:.82rem;cursor:pointer;transition:.2s}
 .dest-quick-item:active{background:var(--c1);color:#fff;border-color:var(--c1)}
 .step-nav{display:flex;gap:10px;justify-content:space-between}
-.step-nav button{flex:1}
+.step-nav button{flex:1;transition:transform .15s ease,box-shadow .15s ease}
 .step-nav button:only-child{max-width:280px;margin:0 auto}
+.step-nav button:hover{transform:translateY(-1px)}
+.step-nav button:active{transform:scale(.97)}
 .budget-slider{width:100%;height:8px;-webkit-appearance:none;appearance:none;background:var(--border);border-radius:4px;outline:none}
-.budget-slider::-webkit-slider-thumb{-webkit-appearance:none;width:28px;height:28px;border-radius:50%;background:var(--c1);cursor:pointer;box-shadow:var(--shadow)}
+.budget-slider::-webkit-slider-thumb{-webkit-appearance:none;width:28px;height:28px;border-radius:50%;background:var(--c1);cursor:pointer;box-shadow:var(--shadow);transition:transform .15s ease}
+.budget-slider::-webkit-slider-thumb:hover{transform:scale(1.15)}
 .budget-labels{display:flex;justify-content:space-between;font-size:.72rem;color:var(--sub);margin-top:8px}
 .budget-display{text-align:center;font-size:1.6rem;font-weight:700;color:var(--c1);margin:10px 0}
 .person-card{margin-bottom:8px;padding:12px;border-radius:var(--radius-sm);background:var(--bg);border:1px solid var(--border)}
 .person-card h4{font-size:.85rem;margin-bottom:8px;color:var(--c2)}
 .person-card input{margin-bottom:6px}
+
+/* Safe area for footer buttons on mobile */
+.screen-footer{padding:12px 16px;padding-bottom:calc(12px + env(safe-area-inset-bottom,8px))}
+.radio-item{transition:transform .15s ease}
+.radio-item:hover{transform:translateY(-1px)}
+.radio-item:active{transform:scale(.96)}
+.tag{transition:transform .12s ease}
+.tag:hover{transform:translateY(-1px)}
 </style>
 </head>
 <body>
@@ -880,29 +908,54 @@ function renderSetupStep() {
 function renderFormCard(body, footer) {
   const total = TOTAL_SUB_STEPS;
   const cur = formSubStep;
-  const pct = Math.round(cur/total*100);
 
-  // Progress bar
+  // Segmented progress bar
+  let segs = '';
+  for (let i=1;i<=total;i++) {
+    let cls = '';
+    if (i<cur) cls=' done';
+    else if (i===cur) cls=' current';
+    segs += `<span class="step-progress-seg${cls}"></span>`;
+  }
+
   body.innerHTML = `
     <div class="step-indicator" style="margin-bottom:12px">
       ${Array.from({length:3},(_,i)=>`<span class="step-dot${i===0?' current':''}"></span>`).join('')}
     </div>
-    <div class="step-progress">
-      <div class="step-progress-bar"><div class="step-progress-fill" style="width:${pct}%"></div></div>
-      <span class="step-progress-text">${cur}/${total}</span>
-    </div>
+    <div class="step-progress">${segs}<span class="step-progress-text">${cur}/${total}</span></div>
     <div class="step-card-wrapper" id="card-wrapper"></div>
   `;
 
   const wrapper = $('#card-wrapper');
-  const oldCard = wrapper.querySelector('.step-card.current');
-  if (oldCard) { oldCard.classList.remove('current'); oldCard.classList.add(cur>formSubStep?'leave-next':'leave-prev'); }
 
-  const card = el('div',{className:'step-card current'});
+  // Animate old card out
+  const oldCard = wrapper.querySelector('.step-card.current');
+  if (oldCard) {
+    const dir = cur > (prevSubStep||formSubStep) ? 'slide-out-left' : 'slide-out-right';
+    oldCard.classList.remove('current');
+    oldCard.classList.add(dir);
+    // Cleanup after animation
+    const toRemove = oldCard;
+    setTimeout(()=>{ if(toRemove.parentNode) toRemove.remove(); }, 360);
+  }
+
+  // Animate new card in
+  const card = el('div',{className:'step-card'});
+  card.style.transform = cur>(prevSubStep||formSubStep)?'translateX(60px)':'translateX(-60px)';
   buildCard(cur, card);
   wrapper.appendChild(card);
 
-  // Footer buttons
+  // Trigger enter animation
+  requestAnimationFrame(()=>{
+    requestAnimationFrame(()=>{
+      card.classList.add('current');
+      card.style.transform = '';
+    });
+  });
+
+  prevSubStep = cur;
+
+  // Footer buttons (fixed at bottom, safe-area aware)
   const nav = el('div',{className:'step-nav'});
   if (cur > 1) {
     const prevBtn = el('button',{className:'btn btn-outline btn-sm',onclick:()=>navigateSubStep(-1)}, '← 上一步');
@@ -919,6 +972,8 @@ function renderFormCard(body, footer) {
   footer.appendChild(nav);
 }
 
+let prevSubStep = 1;
+
 function navigateSubStep(dir) {
   if (animating) return;
   if (dir===1 && !validateCurrentStep()) return;
@@ -928,7 +983,7 @@ function navigateSubStep(dir) {
   animating = true;
   formSubStep = next;
   renderSetupStep();
-  setTimeout(()=>{ animating=false; }, 360);
+  setTimeout(()=>{ animating=false; }, 370);
 }
 
 function validateCurrentStep() {
@@ -1070,15 +1125,20 @@ function buildCard(step, card) {
     `;
   } else if (step===11) {
     // --- Person info ---
+    // Ensure persons array matches people count
     const ppl = parseInt(setupData.people||'2')||2;
-    let html = '<div class="step-card-icon">👤</div><div class="step-card-title">填写同伴信息</div><div class="step-card-sub">根据人数动态生成</div><div class="step-card-content">';
+    if (!setupData.persons) setupData.persons = [];
+    while (setupData.persons.length < ppl) setupData.persons.push({name:'',id:'',phone:'',gender:''});
+    if (setupData.persons.length > ppl) setupData.persons = setupData.persons.slice(0,ppl);
+
+    let html = '<div class="step-card-icon">👤</div><div class="step-card-title">填写同伴信息</div><div class="step-card-sub">根据人数动态生成（修改人数不会丢失已填信息）</div><div class="step-card-content">';
     for (let i=0;i<ppl;i++) {
-      const p = (setupData.persons||[])[i]||{};
+      const p = setupData.persons[i]||{name:'',id:'',phone:'',gender:''};
       html += `<div class="person-card">
         <h4>👤 第${i+1}位${i===0?'（你自己）':''}</h4>
-        <input type="text" placeholder="姓名" id="pname_${i}" value="${p.name||''}">
-        <input type="text" placeholder="身份证号" id="pid_${i}" value="${p.id||''}" maxlength="18">
-        <input type="tel" placeholder="手机号" id="pphone_${i}" value="${p.phone||''}" maxlength="11">
+        <input type="text" placeholder="姓名" id="pname_${i}" value="${(p.name||'').replace(/"/g,'&quot;')}" onchange="savePersonField(${i},'name',this.value)">
+        <input type="text" placeholder="身份证号" id="pid_${i}" value="${(p.id||'').replace(/"/g,'&quot;')}" maxlength="18" onchange="savePersonField(${i},'id',this.value)">
+        <input type="tel" placeholder="手机号" id="pphone_${i}" value="${(p.phone||'').replace(/"/g,'&quot;')}" maxlength="11" onchange="savePersonField(${i},'phone',this.value)">
         <div class="gender-btns" id="pgender_${i}">
           <div class="gender-btn${p.gender==='男'?' sel':''}" onclick="pickGender(${i},'男',this)">👨 男</div>
           <div class="gender-btn${p.gender==='女'?' sel':''}" onclick="pickGender(${i},'女',this)">👩 女</div>
@@ -1111,10 +1171,28 @@ function changePeople(delta) {
   const next = Math.max(1,Math.min(20,cur+delta));
   if (next===cur) return;
   setupData.people = String(next);
+
+  // Preserve existing person data
+  if (!setupData.persons) setupData.persons = [];
+  while (setupData.persons.length < next) setupData.persons.push({name:'',id:'',phone:'',gender:''});
+  if (next < setupData.persons.length) setupData.persons = setupData.persons.slice(0, next);
+
   const disp = document.getElementById('people-display');
   const hid = document.getElementById('f_people');
   if (disp) disp.textContent = next;
   if (hid) hid.value = next;
+
+  // Update step 11 person cards if visible
+  const ppl = next;
+  for (let i=0;i<ppl;i++) {
+    const p = setupData.persons[i]||{};
+    const ni = document.getElementById(`pname_${i}`);
+    const ii = document.getElementById(`pid_${i}`);
+    const pi = document.getElementById(`pphone_${i}`);
+    if (ni) ni.value = p.name||'';
+    if (ii) ii.value = p.id||'';
+    if (pi) pi.value = p.phone||'';
+  }
 }
 
 function toggleTag(field, val, el) {
@@ -1130,8 +1208,14 @@ function pickGender(idx, gender, el) {
   if (parent) { $$('.gender-btn',parent).forEach(b=>b.classList.remove('sel')); }
   el.classList.add('sel');
   if (!setupData.persons) setupData.persons = [];
-  while (setupData.persons.length <= idx) setupData.persons.push({});
+  while (setupData.persons.length <= idx) setupData.persons.push({name:'',id:'',phone:'',gender:''});
   setupData.persons[idx].gender = gender;
+}
+
+function savePersonField(idx, field, value) {
+  if (!setupData.persons) setupData.persons = [];
+  while (setupData.persons.length <= idx) setupData.persons.push({name:'',id:'',phone:'',gender:''});
+  setupData.persons[idx][field] = value;
 }
 
 function goStep2() {
