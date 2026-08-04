@@ -1669,15 +1669,7 @@ const BUILD_TIME = '2026.08.04 17:30';
   stamp.className = 'build-timestamp';
   stamp.textContent = 'v' + BUILD_TIME;
   document.body.appendChild(stamp);
-  // Show only on main screen
-  const origShowScreen = showScreen;
-  showScreen = function(id) {
-    origShowScreen(id);
-    stamp.classList.toggle('visible', id === 'main');
-  };
-  // Also hide during setup initialization
-  if (!loadState()) { stamp.classList.remove('visible'); }
-  else { stamp.classList.add('visible'); }
+  stamp.classList.add('visible');
 })();
 /* === 测试版本时间戳 - 结束 === */
 
